@@ -1,26 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Ubuntu Server · x86_64 · ~2 GB RAM
+# Contabo VPS 10 · x86_64 · 8 GB RAM · 4 vCPU (AMD EPYC) · NVMe
 #
 # Single-image architecture
 #   FastAPI serves both the REST API (under /api/*) and the compiled Vite SPA
-#   (everything else). One container, one port, one Dockerfile at repo root.
+#   (everything else). Postgres on same compose network. Can use internal DNS.
 #
-# Networking strategy
-#   Deploy Manager creates project-scoped network where Docker service-name
-#   DNS is unreliable. Solution: expose db on host port, give app an
-#   "host.docker.internal" alias (host-gateway) so it connects through the
-#   host's port-mapping instead of relying on Docker-internal DNS.
+# Resource allocation (8 GB total)
+#   OS + Docker daemon  ≈ 500 MB
+#   db (postgres 15)    ≈ 1.5 GB (can use shared buffers now)
+#   app (uvicorn+SPA)   ≈ 1.0 GB (4 workers, real concurrency)
+#   headroom            ≈ 4.0 GB
 #
-# Env strategy
-#   Deploy Manager passes envs via execSync `env` option. ${VAR:-default}
-#   provides fallback at compose-parse time. Backend entrypoint rebuilds
-#   DATABASE_URL from components as belt-and-suspenders.
-#
-# Memory budget (~2 GB)
-#   OS + Docker daemon  ≈ 400 MB
-#   db (postgres 15)    ≈ 256 MB
-#   app (uvicorn+SPA)   ≈ 384 MB
-#   headroom            ≈ 960 MB
+# Performance tuning
+#   PostgreSQL: shared_buffers=1GB, effective_cache_size=3GB, max_connections=100
+#   Uvicorn: WEB_WORKERS=4 (1 per vCPU roughly)
+#   NVMe: random_page_cost=1.1, effective_io_concurrency=200 (high for SSD)
+#   Database port: 5432 (internal docker DNS works fine, no host mapping needed)
+#   App port: 8000 (exposed to host, manage via Nginx if needed)
 # ─────────────────────────────────────────────────────────────────────────────
 
 version: "3.9"
@@ -39,30 +35,31 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     command: >
       postgres
-        -c shared_buffers=64MB
-        -c effective_cache_size=192MB
-        -c maintenance_work_mem=32MB
-        -c work_mem=4MB
-        -c max_connections=20
+        -c shared_buffers=1GB
+        -c effective_cache_size=3GB
+        -c maintenance_work_mem=256MB
+        -c work_mem=32MB
+        -c max_connections=100
         -c checkpoint_completion_target=0.9
-        -c wal_buffers=4MB
-        -c min_wal_size=80MB
-        -c max_wal_size=512MB
+        -c wal_buffers=16MB
+        -c min_wal_size=256MB
+        -c max_wal_size=2GB
         -c random_page_cost=1.1
-        -c effective_io_concurrency=1
+        -c effective_io_concurrency=200
         -c log_min_duration_statement=2000
     ports:
-      - "5442:5432"
+      - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
     deploy:
       resources:
         limits:
-          cpus: "0.75"
-          memory: 256M
+          cpus: "2.0"
+          memory: 1536M
         reservations:
-          memory: 96M
+          cpus: "1.0"
+          memory: 768M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -78,18 +75,13 @@ services:
     image: route_manager:local
     container_name: route_app
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
-      # double-belt: pydantic-settings reads env vars first, so this value
-      # wins over the localhost default in app/config.py.
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5442/route_manager
-      DB_HOST: host.docker.internal
-      DB_PORT: 5442
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
+      DB_HOST: db
+      DB_PORT: 5432
       DB_NAME: route_manager
       DB_USER: postgres
       POSTGRES_DB: route_manager
@@ -99,20 +91,21 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       UPLOAD_DIR: /app/uploads
       PORT: 8000
-      WEB_WORKERS: ${WEB_WORKERS:-1}
+      WEB_WORKERS: ${WEB_WORKERS:-4}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
-      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-100}
     ports:
-      - "8010:8000"
+      - "8000:8000"
     volumes:
       - uploads_data:/app/uploads
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 384M
+          cpus: "2.0"
+          memory: 1024M
         reservations:
-          memory: 128M
+          cpus: "1.5"
+          memory: 512M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
