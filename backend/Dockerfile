@@ -1,9 +1,16 @@
-FROM python:3.11-slim
+# ── x86_64 compatibility ────────────────────────────────────────────────────
+# Target arch: linux/amd64. python:3.11-slim ships generic x86_64 binaries.
+FROM --platform=linux/amd64 python:3.11-slim
 
 WORKDIR /app
 
+# System deps — keep minimal
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl postgresql-client \
+    build-essential \
+    libpq-dev \
+    curl \
+    netcat-openbsd \
+    postgresql-client \
     tesseract-ocr tesseract-ocr-por \
     poppler-utils \
     libgl1 libglib2.0-0 \
@@ -14,11 +21,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ /app/
 
-RUN chmod +x /app/entrypoint.sh
+RUN mkdir -p /app/uploads && chmod +x /app/entrypoint.sh
 
-EXPOSE 8000
+ENV PORT=8000
+EXPOSE ${PORT}
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Entrypoint rebuilds DATABASE_URL from individual components (DB_HOST, DB_PORT,
+# POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) so it always points to the
+# correct host even if a deploy manager injects a stale DATABASE_URL=localhost.
+CMD ["/app/entrypoint.sh"]
