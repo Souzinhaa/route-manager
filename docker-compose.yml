@@ -1,0 +1,105 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL 15 ──────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    platform: linux/amd64
+    container_name: route_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: route_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command: >
+      postgres
+        -c shared_buffers=64MB
+        -c effective_cache_size=192MB
+        -c maintenance_work_mem=32MB
+        -c work_mem=4MB
+        -c max_connections=20
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=4MB
+        -c min_wal_size=80MB
+        -c max_wal_size=512MB
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=1
+        -c log_min_duration_statement=2000
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 256M
+        reservations:
+          memory: 96M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    platform: linux/amd64
+    container_name: route_api
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5432/route_manager
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      DB_NAME: route_manager
+      DB_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      UPLOAD_DIR: /app/uploads
+      PORT: 8000
+      WEB_WORKERS: 1
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
+        reservations:
+          memory: 128M
+
+  # ── React Frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    platform: linux/amd64
+    container_name: route_web
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://host.docker.internal:8000/api
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          memory: 64M
+
+volumes:
+  db_data:
+  uploads_data:
