@@ -2,12 +2,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Bootstrap: clone repo + install docker (if missing) + deploy stack.
 #
-# Run remotely (recommended for fresh Ubuntu server):
-#   curl -fsSL https://raw.githubusercontent.com/Souzinhaa/route-manager/deploy/linux-ubuntu/install.sh | bash
+# Auth options (optional — public repos don't need auth):
+#   Option 1: Environment variables
+#     export GH_USER="your_username"
+#     export GH_TOKEN="your_github_token"
+#     curl -fsSL https://raw.githubusercontent.com/Souzinhaa/route-manager/deploy/linux-ubuntu/install.sh | bash
 #
-# Or download first, edit, then run:
-#   wget https://raw.githubusercontent.com/Souzinhaa/route-manager/deploy/linux-ubuntu/install.sh
-#   chmod +x install.sh && ./install.sh
+#   Option 2: ~/.github-token file
+#     echo "your_username:your_github_token" > ~/.github-token
+#     chmod 600 ~/.github-token
+#     curl -fsSL https://raw.githubusercontent.com/Souzinhaa/route-manager/deploy/linux-ubuntu/install.sh | bash
+#
+#   Option 3: Public clone (no auth needed)
+#     curl -fsSL https://raw.githubusercontent.com/Souzinhaa/route-manager/deploy/linux-ubuntu/install.sh | bash
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -15,6 +22,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/Souzinhaa/route-manager.git}"
 BRANCH="${BRANCH:-deploy/linux-ubuntu}"
 TARGET_DIR="${TARGET_DIR:-route-manager}"
+GH_TOKEN_FILE="${HOME}/.github-token"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -70,20 +78,40 @@ if ! command -v git >/dev/null 2>&1; then
   $SUDO apt-get install -y git
 fi
 
-# ── 5. Clone or update repo ─────────────────────────────────────────────────
+# ── 5. GitHub auth setup (read from env or ~/.github-token) ────────────────
+GIT_CLONE_URL="$REPO_URL"
+
+if [[ -n "${GH_USER:-}" && -n "${GH_TOKEN:-}" ]]; then
+  info "Using auth from GH_USER + GH_TOKEN env vars..."
+  GIT_CLONE_URL="https://${GH_USER}:${GH_TOKEN}@github.com/$(echo "$REPO_URL" | sed 's|.*github.com/||')"
+  git config --global credential.helper store 2>/dev/null || true
+elif [[ -f "$GH_TOKEN_FILE" ]]; then
+  info "Using auth from $GH_TOKEN_FILE..."
+  if IFS=':' read -r GH_USER GH_TOKEN < "$GH_TOKEN_FILE"; then
+    GIT_CLONE_URL="https://${GH_USER}:${GH_TOKEN}@github.com/$(echo "$REPO_URL" | sed 's|.*github.com/||')"
+    git config --global credential.helper store 2>/dev/null || true
+  fi
+else
+  info "No auth configured. Using public clone."
+fi
+
+# ── 6. Clone or update repo ─────────────────────────────────────────────────
 if [[ -d "$TARGET_DIR/.git" ]]; then
   info "Repo exists. Pulling latest from $BRANCH..."
   cd "$TARGET_DIR"
-  git fetch origin "$BRANCH"
-  git checkout "$BRANCH"
-  git pull origin "$BRANCH"
+  git fetch origin "$BRANCH" 2>/dev/null || git fetch origin
+  git checkout "$BRANCH" 2>/dev/null || true
+  git pull origin "$BRANCH" 2>/dev/null || true
 else
-  info "Cloning $REPO_URL (branch: $BRANCH)..."
-  git clone -b "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+  info "Cloning repo (branch: $BRANCH)..."
+  git clone -b "$BRANCH" "$GIT_CLONE_URL" "$TARGET_DIR" || git clone "$REPO_URL" "$TARGET_DIR"
   cd "$TARGET_DIR"
+  git checkout "$BRANCH" 2>/dev/null || true
 fi
 
-# ── 6. Bootstrap .env ───────────────────────────────────────────────────────
+unset GH_TOKEN GH_USER
+
+# ── 7. Bootstrap .env ───────────────────────────────────────────────────────
 if [[ ! -f .env ]]; then
   cp .env.example .env
   warn ".env created from .env.example."
@@ -91,7 +119,7 @@ if [[ ! -f .env ]]; then
   warn "  nano $(pwd)/.env"
 fi
 
-# ── 7. Run deploy ───────────────────────────────────────────────────────────
+# ── 8. Run deploy ───────────────────────────────────────────────────────────
 chmod +x deploy.sh
 info "Starting stack..."
 if groups "$USER" 2>/dev/null | grep -q docker || [[ $EUID -eq 0 ]]; then
@@ -100,7 +128,7 @@ else
   $SUDO ./deploy.sh up
 fi
 
-# ── 8. Done ─────────────────────────────────────────────────────────────────
+# ── 9. Done ─────────────────────────────────────────────────────────────────
 APP_PORT="$(grep -E '^APP_PORT=' .env | cut -d= -f2 || true)"
 APP_PORT="${APP_PORT:-8010}"
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo localhost)"
