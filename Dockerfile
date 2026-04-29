@@ -43,12 +43,8 @@ COPY --from=frontend-build /build/dist /app/static
 
 RUN mkdir -p /app/uploads
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
 EXPOSE ${PORT}
 
-# Entrypoint rebuilds DATABASE_URL from individual components so it always
-# points to the correct host even if a deploy manager injects a stale value.
-CMD ["/docker-entrypoint.sh"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers ${WEB_WORKERS:-1}
