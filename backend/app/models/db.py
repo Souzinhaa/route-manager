@@ -69,7 +69,7 @@ class PaymentTransaction(Base):
 
 
 def get_db_url(settings):
-    return settings.database_url
+    return settings.resolved_database_url
 
 
 def get_engine(settings):
