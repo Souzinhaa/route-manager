@@ -30,6 +30,7 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
     deploy:
       resources:
         limits:
@@ -88,8 +89,10 @@ services:
     platform: linux/amd64
     container_name: route_web
     restart: unless-stopped
-    environment:
-      REACT_APP_API_URL: http://host.docker.internal:8000/api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
     ports:
       - "3000:3000"
     deploy:

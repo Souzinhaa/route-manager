@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
+from jose import jwt
 from passlib.context import CryptContext
 from app.config import get_settings
 from app.models.db import User
 from app.models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
+from app.deps import get_db, get_current_user
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -21,10 +22,8 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta=None, settings=None):
+def create_access_token(data: dict, settings, expires_delta=None):
     to_encode = data.copy()
-    if settings is None:
-        settings = get_settings()
 
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -37,8 +36,10 @@ def create_access_token(data: dict, expires_delta=None, settings=None):
 
 
 @router.post("/register", response_model=UserResponse)
-async def register(user: UserCreate, db: Session):
-    # Check if user exists
+async def register(
+    user: UserCreate,
+    db: Session = Depends(get_db)
+):
     stmt = select(User).where(User.email == user.email)
     existing_user = db.execute(stmt).scalars().first()
 
@@ -53,17 +54,21 @@ async def register(user: UserCreate, db: Session):
         email=user.email,
         hashed_password=hashed_password,
         full_name=user.full_name,
-        credits=100.0  # Initial credits
+        credits=100.0
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
 
-    return db_user
+    return UserResponse.model_validate(db_user)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user: UserLogin, db: Session, settings=Depends(get_settings)):
+async def login(
+    user: UserLogin,
+    db: Session = Depends(get_db),
+    settings = Depends(get_settings)
+):
     stmt = select(User).where(User.email == user.email)
     db_user = db.execute(stmt).scalars().first()
 
@@ -75,26 +80,13 @@ async def login(user: UserLogin, db: Session, settings=Depends(get_settings)):
 
     access_token = create_access_token({"sub": user.email}, settings=settings)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.from_orm(db_user)
-    }
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse.model_validate(db_user)
+    )
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(token: str, db: Session, settings=Depends(get_settings)):
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        email: str = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=401)
-    except JWTError:
-        raise HTTPException(status_code=401)
-
-    stmt = select(User).where(User.email == email)
-    user = db.execute(stmt).scalars().first()
-    if user is None:
-        raise HTTPException(status_code=401)
-
-    return user
+async def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse.model_validate(current_user)
