@@ -27,7 +27,7 @@ services:
         -c effective_io_concurrency=1
         -c log_min_duration_statement=2000
     ports:
-      - "5432:5432"
+      - "5442:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
@@ -58,7 +58,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5432/route_manager
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5442/route_manager
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       DB_NAME: route_manager
@@ -70,7 +70,7 @@ services:
       PORT: 8000
       WEB_WORKERS: 1
     ports:
-      - "8000:8000"
+      - "8010:8000"
     volumes:
       - uploads_data:/app/uploads
     deploy:
@@ -94,7 +94,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "3010:3000"
     deploy:
       resources:
         limits:

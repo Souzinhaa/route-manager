@@ -14,13 +14,13 @@ docker-compose up -d
 ```
 
 Pronto! Esperar 30s:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- DB: localhost:5432
+- Frontend: http://localhost:3010
+- Backend: http://localhost:8010
+- DB: localhost:5442
 
 ## 3. Test
 
-1. Abrir http://localhost:3000
+1. Abrir http://localhost:3010
 2. Register: email/password
 3. Login
 4. Dashboard → Add endereços → Optimize

@@ -4,7 +4,7 @@ set -e
 echo "🧪 Testing Route Manager API"
 echo "=============================="
 
-API="http://localhost:8000"
+API="http://localhost:8010"
 
 echo "1️⃣  Health Check..."
 curl -s $API/health | jq .
