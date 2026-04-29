@@ -1,0 +1,14 @@
+**/.git
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+**/dist
+**/.vscode
+**/.DS_Store
+**/Thumbs.db
+**/.env
+**/.env.local
+**/uploads
+**/*.log
+**/.gitignore
+**/README.md
