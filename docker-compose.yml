@@ -9,9 +9,9 @@ services:
     container_name: route_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: route_manager
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     command: >
       postgres
         -c shared_buffers=64MB
@@ -58,17 +58,17 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5442/route_manager
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@host.docker.internal:5442/${POSTGRES_DB}
       DB_HOST: host.docker.internal
-      DB_PORT: 5432
-      DB_NAME: route_manager
-      DB_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
       UPLOAD_DIR: /app/uploads
-      PORT: 8000
-      WEB_WORKERS: 1
+      PORT: "8000"
+      WEB_WORKERS: "1"
     ports:
       - "8010:8000"
     volumes:
