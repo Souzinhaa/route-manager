@@ -1,7 +1,7 @@
 FROM --platform=linux/amd64 postgres:15-alpine
 
 # Build context must be repo root: docker build -f db/Dockerfile .
-COPY ../migrations/001_initial.sql ../docker-entrypoint-initdb.d/001_initial.sql
+COPY migrations/001_initial.sql docker-entrypoint-initdb.d/001_initial.sql
 
 CMD ["postgres", \
     "-c", "shared_buffers=64MB", \
