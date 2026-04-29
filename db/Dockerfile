@@ -3,6 +3,9 @@ FROM --platform=linux/amd64 postgres:15-alpine
 # Build context must be repo root: docker build -f db/Dockerfile .
 COPY /migrations/001_initial.sql /docker-entrypoint-initdb.d/001_initial.sql
 
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+  CMD pg_isready -U postgres
+
 CMD ["postgres", \
     "-c", "shared_buffers=64MB", \
     "-c", "effective_cache_size=192MB", \

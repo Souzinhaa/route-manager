@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-DB_HOST="${DB_HOST:-host.docker.internal}"
-DB_PORT="${DB_PORT:-5442}"
+DB_HOST="${DB_HOST:-app-db}"
+DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${POSTGRES_DB:-${DB_NAME:-route_manager}}"
 DB_USER="${POSTGRES_USER:-${DB_USER:-postgres}}"
 DB_PASS="${POSTGRES_PASSWORD:-postgres}"
