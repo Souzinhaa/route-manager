@@ -1,9 +1,5 @@
 version: "3.9"
 
-env_file:
-  - .env.dm
-  - .env
-
 services:
 
   # ── PostgreSQL 15 ──────────────────────────────────────────────────────────
@@ -12,6 +8,9 @@ services:
     platform: linux/amd64
     container_name: route_db
     restart: unless-stopped
+    env_file:
+      - .env.dm
+      - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -61,6 +60,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - .env.dm
+      - .env
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@host.docker.internal:5442/${POSTGRES_DB}
       DB_HOST: host.docker.internal
@@ -97,6 +99,9 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - backend
+    env_file:
+      - .env.dm
+      - .env
     ports:
       - "3010:3000"
     deploy:
