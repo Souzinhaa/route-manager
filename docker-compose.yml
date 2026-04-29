@@ -1,30 +1,5 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Ubuntu Server · x86_64 · ~2 GB RAM
-#
-# Single-image architecture
-#   FastAPI serves both the REST API (under /api/*) and the compiled Vite SPA
-#   (everything else). One container, one port, one Dockerfile at repo root.
-#
-# Networking strategy
-#   Custom bridge network "route_net" gives reliable Docker DNS between
-#   services. App connects to DB via service name: db:5432 (internal).
-#
-# Memory budget (~2 GB)
-#   OS + Docker daemon  ≈ 400 MB
-#   db (postgres 15)    ≈ 256 MB
-#   app (uvicorn+SPA)   ≈ 384 MB
-#   headroom            ≈ 960 MB
-# ─────────────────────────────────────────────────────────────────────────────
-
-version: "3.9"
-
-networks:
-  route_net:
-    driver: bridge
-
 services:
-
-  # ── PostgreSQL 15 ──────────────────────────────────────────────────────────
+  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -32,83 +7,48 @@ services:
       POSTGRES_DB: route_manager
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    command: >
-      postgres
-        -c shared_buffers=64MB
-        -c effective_cache_size=192MB
-        -c maintenance_work_mem=32MB
-        -c work_mem=4MB
-        -c max_connections=20
-        -c checkpoint_completion_target=0.9
-        -c wal_buffers=4MB
-        -c min_wal_size=80MB
-        -c max_wal_size=512MB
-        -c random_page_cost=1.1
-        -c effective_io_concurrency=1
-        -c log_min_duration_statement=2000
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./db/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
-    networks:
-      - route_net
-    deploy:
-      resources:
-        limits:
-          cpus: "0.75"
-          memory: 256M
-        reservations:
-          memory: 96M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d route_manager"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - route_net
 
-  # ── FastAPI + SPA ──────────────────────────────────────────────────────────
+  # FastAPI + SPA
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: route_manager:local
+    build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: route_manager
-      DB_USER: postgres
-      POSTGRES_DB: route_manager
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-min-32-chars}
+      DATABASE_URL: "postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager"
+      SECRET_KEY: ${SECRET_KEY:-troque-em-producao-chave-forte-aqui}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      APP_URL: ${APP_URL:-http://localhost:8000}
       UPLOAD_DIR: /app/uploads
-      PORT: 8000
-      WEB_WORKERS: ${WEB_WORKERS:-1}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      WEB_WORKERS: ${WEB_WORKERS:-2}
     ports:
       - "${APP_PORT:-8010}:8000"
     volumes:
       - uploads_data:/app/uploads
-    networks:
-      - route_net
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 384M
-        reservations:
-          memory: 128M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - route_net
 
 volumes:
   db_data:
   uploads_data:
+
+networks:
+  route_net:
