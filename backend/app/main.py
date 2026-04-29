@@ -1,5 +1,8 @@
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.config import get_settings
 from app.models.db import Base
 from app.deps import _engine
@@ -23,9 +26,20 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(routes.router)
 
+# Serve compiled SPA bundled into image at /app/static
+STATIC_DIR = Path("/app/static")
+ASSETS_DIR = STATIC_DIR / "assets"
 
-@app.get("/")
-async def root():
+if ASSETS_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    # API routes already matched above; this serves index.html for SPA routing.
+    index = STATIC_DIR / "index.html"
+    if index.is_file():
+        return FileResponse(index)
     return {"message": "Route Manager API"}
 
 

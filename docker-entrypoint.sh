@@ -12,9 +12,8 @@ DB_PASS="${POSTGRES_PASSWORD:-postgres}"
 export DATABASE_URL="postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 echo "[entrypoint] DATABASE_URL rebuilt: postgresql+psycopg2://${DB_USER}:***@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
-# Wait for database
 echo "[entrypoint] Waiting for database at ${DB_HOST}:${DB_PORT}..."
-while ! pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" > /dev/null 2>&1; do
+until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" > /dev/null 2>&1; do
   sleep 1
 done
 echo "[entrypoint] Database is ready"
