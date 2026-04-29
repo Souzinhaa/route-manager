@@ -6,15 +6,8 @@
 #   (everything else). One container, one port, one Dockerfile at repo root.
 #
 # Networking strategy
-#   Deploy Manager creates project-scoped network where Docker service-name
-#   DNS is unreliable. Solution: expose db on host port, give app an
-#   "host.docker.internal" alias (host-gateway) so it connects through the
-#   host's port-mapping instead of relying on Docker-internal DNS.
-#
-# Env strategy
-#   Deploy Manager passes envs via execSync `env` option. ${VAR:-default}
-#   provides fallback at compose-parse time. Backend entrypoint rebuilds
-#   DATABASE_URL from components as belt-and-suspenders.
+#   Custom bridge network "route_net" gives reliable Docker DNS between
+#   services. App connects to DB via service name: db:5432 (internal).
 #
 # Memory budget (~2 GB)
 #   OS + Docker daemon  ≈ 400 MB
@@ -25,12 +18,15 @@
 
 version: "3.9"
 
+networks:
+  route_net:
+    driver: bridge
+
 services:
 
   # ── PostgreSQL 15 ──────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
-    platform: linux/amd64
     container_name: route_db
     restart: unless-stopped
     environment:
@@ -51,11 +47,11 @@ services:
         -c random_page_cost=1.1
         -c effective_io_concurrency=1
         -c log_min_duration_statement=2000
-    ports:
-      - "5442:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+      - ./db/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+    networks:
+      - route_net
     deploy:
       resources:
         limits:
@@ -74,22 +70,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/amd64
     image: route_manager:local
     container_name: route_app
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
-      # double-belt: pydantic-settings reads env vars first, so this value
-      # wins over the localhost default in app/config.py.
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5442/route_manager
-      DB_HOST: host.docker.internal
-      DB_PORT: 5442
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
+      DB_HOST: db
+      DB_PORT: 5432
       DB_NAME: route_manager
       DB_USER: postgres
       POSTGRES_DB: route_manager
@@ -106,6 +96,8 @@ services:
       - "8010:8000"
     volumes:
       - uploads_data:/app/uploads
+    networks:
+      - route_net
     deploy:
       resources:
         limits:

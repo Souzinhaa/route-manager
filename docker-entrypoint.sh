@@ -3,8 +3,8 @@ set -e
 
 # Rebuild DATABASE_URL from individual components so it always points to the
 # correct host/port even if a deploy manager injects a stale value.
-DB_HOST="${DB_HOST:-host.docker.internal}"
-DB_PORT="${DB_PORT:-5442}"
+DB_HOST="${DB_HOST:-db}"
+DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${POSTGRES_DB:-${DB_NAME:-route_manager}}"
 DB_USER="${POSTGRES_USER:-${DB_USER:-postgres}}"
 DB_PASS="${POSTGRES_PASSWORD:-postgres}"
