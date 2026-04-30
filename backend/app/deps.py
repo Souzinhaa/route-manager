@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, HTTPException, Header, Request, status
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -19,17 +19,19 @@ def get_db():
 
 
 def get_current_user(
+    request: Request,
     authorization: str = Header(None),
     db: Session = Depends(get_db),
-    settings = Depends(get_settings)
+    settings=Depends(get_settings),
 ) -> User:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
+    # Prefer httpOnly cookie; fall back to Authorization header for API clients.
+    token: str | None = request.cookies.get("access_token")
+    if not token:
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization[7:]
 
-    token = authorization[7:]
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])

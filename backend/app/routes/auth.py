@@ -1,7 +1,8 @@
 import logging
+import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import get_current_user, get_db
+from app.limiter import limiter
 from app.models.db import User
 from app.models.schemas import (
     TokenResponse,
@@ -41,8 +43,18 @@ def create_access_token(data: dict, settings, expires_delta: timedelta | None = 
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
+def _set_auth_cookies(response: Response, token: str, settings) -> None:
+    """Set httpOnly access_token + readable csrf_token cookie."""
+    csrf_token = secrets.token_hex(32)
+    max_age = settings.access_token_expire_minutes * 60
+    shared = dict(max_age=max_age, samesite="lax", secure=settings.cookie_secure, path="/")
+    response.set_cookie(key="access_token", value=token, httponly=True, **shared)
+    response.set_cookie(key="csrf_token", value=csrf_token, httponly=False, **shared)
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.execute(select(User).where(User.email == user.email)).scalars().first()
     if existing_user:
         raise HTTPException(
@@ -73,15 +85,16 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
+    response: Response,
     user: UserLogin,
     db: Session = Depends(get_db),
     settings=Depends(get_settings),
 ):
     db_user = db.execute(select(User).where(User.email == user.email)).scalars().first()
 
-    # Constant-time check: always verify a password (against a dummy hash if user is missing)
-    # so absent vs. wrong-password takes the same time, preventing email enumeration.
     if db_user:
         valid = verify_password(user.password, db_user.hashed_password)
     else:
@@ -96,11 +109,20 @@ async def login(
         )
 
     access_token = create_access_token({"sub": user.email}, settings=settings)
+    _set_auth_cookies(response, access_token, settings)
+
+    logger.info("User logged in: %s", user.email)
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
         user=UserResponse.model_validate(db_user),
     )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("csrf_token", path="/")
 
 
 @router.get("/me", response_model=UserResponse)

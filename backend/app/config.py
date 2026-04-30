@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     max_waypoints: int = 198
     avg_speed_kmh: float = 50.0
     bcrypt_dummy_hash: str = "$2b$12$00000000000000000000000000000000000000000000000000000"
+    cookie_secure: bool = False  # set True when running behind HTTPS
 
     class Config:
         env_file = ".env"

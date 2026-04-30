@@ -6,12 +6,13 @@ from pathlib import Path
 from urllib.parse import quote
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import get_current_user, get_db
+from app.limiter import limiter
 from app.models.db import Route, Upload, User
 from app.models.schemas import (
     OptimizeRouteRequest,
@@ -27,6 +28,8 @@ from app.services.ortools_service import OrToolsService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
+CREDIT_COST_OPTIMIZE = 1.0
+
 ALLOWED_EXTENSIONS = {".xml", ".pdf", ".png", ".jpg", ".jpeg"}
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -41,7 +44,9 @@ def _sanitize_filename(raw: str) -> str:
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -114,15 +119,24 @@ async def upload_file(
 
 
 @router.post("/optimize", response_model=OptimizeRouteResponse)
+@limiter.limit("30/minute")
 async def optimize_route(
+    request: Request,
     req: OptimizeRouteRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
     settings=Depends(get_settings),
 ):
     if len(req.waypoints) > settings.max_waypoints:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Too many waypoints (max {settings.max_waypoints})",
+        )
+
+    if current_user.credits < CREDIT_COST_OPTIMIZE:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Insufficient credits (need {CREDIT_COST_OPTIMIZE}, have {current_user.credits})",
         )
 
     geo = GeocodingService(settings.google_maps_api_key)
@@ -151,6 +165,14 @@ async def optimize_route(
     # distance is in km; minutes = distance / avg_speed_kmh * 60
     duration_minutes = (distance / settings.avg_speed_kmh) * 60.0 if distance else 0.0
     cost = OrToolsService.estimate_cost(distance)
+
+    # Deduct credits after successful optimization
+    try:
+        current_user.credits -= CREDIT_COST_OPTIMIZE
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to deduct credits for user %s: %s", current_user.email, exc)
 
     return OptimizeRouteResponse(
         optimized_waypoints=optimized_waypoints,

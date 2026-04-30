@@ -16,7 +16,6 @@ function Login({ setUser }) {
 
     try {
       const res = await authService.login(email, password)
-      localStorage.setItem('access_token', res.data.access_token)
       setUser(res.data.user)
       navigate('/dashboard')
     } catch (err) {

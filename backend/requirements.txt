@@ -17,3 +17,7 @@ pytesseract==0.3.10
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 bcrypt==4.0.1
+slowapi==0.1.9
+httpx==0.25.2
+pytest==7.4.3
+pytest-asyncio==0.21.4
