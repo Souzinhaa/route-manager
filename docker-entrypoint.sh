@@ -18,4 +18,5 @@ until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" > /dev/null 2>&
 done
 echo "[entrypoint] Database is ready"
 
-exec python -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers "${WEB_WORKERS:-1}"
+echo "[entrypoint] starting uvicorn on 0.0.0.0:${PORT:-8000} with ${WEB_WORKERS:-1} worker(s)..."
+exec python -u -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers "${WEB_WORKERS:-1}" --log-level info --access-log

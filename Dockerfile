@@ -47,7 +47,12 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 EXPOSE ${PORT}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+  CMD curl -fsS http://localhost:${PORT:-8000}/health || exit 1
 
 # Entrypoint rebuilds DATABASE_URL from individual components so it always
 # points to the correct host even if a deploy manager injects a stale value.
