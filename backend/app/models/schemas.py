@@ -1,17 +1,20 @@
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import List, Optional, Literal
 from datetime import datetime
+
+
+OptimizationType = Literal["tsp", "vrp"]
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=1, max_length=120)
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -33,17 +36,17 @@ class TokenResponse(BaseModel):
 
 
 class Waypoint(BaseModel):
-    address: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    address: str = Field(min_length=1, max_length=500)
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
 
 
 class RouteCreate(BaseModel):
-    name: str
-    optimization_type: str
-    start_address: str
-    end_address: str
-    waypoints: List[Waypoint]
+    name: str = Field(min_length=1, max_length=200)
+    optimization_type: OptimizationType = "tsp"
+    start_address: str = Field(min_length=1, max_length=500)
+    end_address: str = Field(min_length=1, max_length=500)
+    waypoints: List[Waypoint] = Field(max_length=500)
 
 
 class RouteResponse(BaseModel):
@@ -76,10 +79,17 @@ class UploadResponse(BaseModel):
 
 
 class OptimizeRouteRequest(BaseModel):
-    optimization_type: str
-    start_address: str
-    end_address: str
-    waypoints: List[Waypoint]
+    optimization_type: OptimizationType = "tsp"
+    start_address: str = Field(min_length=1, max_length=500)
+    end_address: str = Field(min_length=1, max_length=500)
+    waypoints: List[Waypoint] = Field(max_length=500)
+
+    @field_validator("waypoints")
+    @classmethod
+    def waypoints_not_empty(cls, v: List[Waypoint]) -> List[Waypoint]:
+        if not v:
+            raise ValueError("waypoints must contain at least one entry")
+        return v
 
 
 class OptimizeRouteResponse(BaseModel):
