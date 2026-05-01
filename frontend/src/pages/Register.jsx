@@ -19,7 +19,12 @@ function Register() {
       await authService.register(email, password, fullName)
       navigate('/login')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Registration failed')
+      const detail = err.response?.data?.detail
+      setError(
+        Array.isArray(detail)
+          ? detail.map((e) => e.msg).join(', ')
+          : detail || 'Registration failed'
+      )
     } finally {
       setLoading(false)
     }

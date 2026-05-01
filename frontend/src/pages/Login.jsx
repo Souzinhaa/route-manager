@@ -19,7 +19,12 @@ function Login({ setUser }) {
       setUser(res.data.user)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed')
+      const detail = err.response?.data?.detail
+      setError(
+        Array.isArray(detail)
+          ? detail.map((e) => e.msg).join(', ')
+          : detail || 'Login failed'
+      )
     } finally {
       setLoading(false)
     }
