@@ -75,7 +75,7 @@ services:
     platform: linux/amd64
     image: route_manager:local
     container_name: route_app
-    restart: no
+    restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
