@@ -114,6 +114,7 @@ services:
           memory: 384M
         reservations:
           memory: 128M
+    restart: "no"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
