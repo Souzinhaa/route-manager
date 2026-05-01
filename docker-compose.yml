@@ -50,7 +50,7 @@ services:
         -c effective_io_concurrency=1
         -c log_min_duration_statement=2000
     ports:
-      - "5442:5432"
+      - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
@@ -85,9 +85,9 @@ services:
       # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
       # double-belt: pydantic-settings reads env vars first, so this value
       # wins over the localhost default in app/config.py.
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5442/route_manager
-      DB_HOST: host.docker.internal
-      DB_PORT: 5442
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5432/route_manager
+      DB_HOST: db
+      DB_PORT: 5432
       DB_NAME: route_manager
       DB_USER: postgres
       POSTGRES_DB: route_manager
