@@ -51,9 +51,10 @@ export const routeService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  optimizeRoute: (optimizationType, startAddress, endAddress, waypoints) =>
+  optimizeRoute: (optimizationType, vehicleType, startAddress, endAddress, waypoints) =>
     api.post('/routes/optimize', {
       optimization_type: optimizationType,
+      vehicle_type: vehicleType,
       start_address: startAddress,
       end_address: endAddress,
       waypoints,

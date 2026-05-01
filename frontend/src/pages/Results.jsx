@@ -1,116 +1,130 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { routeService } from '../services/api'
 
-function Results({ user }) {
+const VEHICLE_LABEL = { moto: '🏍️ Moto', leve: '🚗 Veículo Leve', pesado: '🚛 Veículo Pesado' }
+
+function formatDuration(min) {
+  if (!min) return 'N/A'
+  if (min < 60) return `${Math.round(min)} min`
+  return `${Math.floor(min / 60)}h ${Math.round(min % 60)}min`
+}
+
+function Results() {
   const [route, setRoute] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
     const saved = localStorage.getItem('lastRoute')
-    if (saved) {
-      setRoute(JSON.parse(saved))
-    }
-    setLoading(false)
+    if (saved) setRoute(JSON.parse(saved))
   }, [])
-
-  if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>
-  }
 
   if (!route) {
     return (
-      <div className="main">
-        <h2>No Route Found</h2>
-        <p>Please create a route first.</p>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+      <div className="main container">
+        <div className="card" style={{ textAlign: 'center', padding: 60 }}>
+          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🗺️</div>
+          <h2 style={{ marginBottom: 8, color: 'var(--gray-700)' }}>Nenhuma rota encontrada</h2>
+          <p style={{ color: 'var(--gray-400)', marginBottom: 20 }}>Crie uma rota primeiro.</p>
+          <button className="btn-primary" style={{ width: 'auto', margin: '0 auto', display: 'block' }}
+            onClick={() => navigate('/dashboard')}>
+            Ir para o Painel
+          </button>
+        </div>
       </div>
     )
   }
 
+  const handleCopy = () => {
+    const text = `Rota Otimizada
+Distância: ${route.total_distance_km?.toFixed(2)} km
+Duração: ${formatDuration(route.total_duration_minutes)}
+Custo estimado: R$ ${route.cost_estimate?.toFixed(2)}
+
+Paradas:
+${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
-    <div className="main">
-      <h2>Optimized Route</h2>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-        {/* Details */}
+    <div className="main container">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h3>Route Details</h3>
-          <div className="card">
-            <p><strong>Total Distance:</strong> {route.total_distance_km?.toFixed(2)} km</p>
-            <p><strong>Estimated Duration:</strong> {route.total_duration_minutes?.toFixed(0)} minutes</p>
-            <p><strong>Cost Estimate:</strong> R$ {route.cost_estimate?.toFixed(2)}</p>
-            <p><strong>Waypoints:</strong> {route.optimized_waypoints?.length || 0}</p>
-          </div>
+          <div className="page-title">Rota Otimizada</div>
+          {route.vehicleType && (
+            <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+              {VEHICLE_LABEL[route.vehicleType] || route.vehicleType}
+            </span>
+          )}
+        </div>
+        <button className="btn-secondary" onClick={() => navigate('/dashboard')}>
+          ← Nova Rota
+        </button>
+      </div>
 
-          <h3 style={{ marginTop: '30px' }}>Optimized Sequence</h3>
-          {route.optimized_waypoints && route.optimized_waypoints.length > 0 ? (
-            <ol style={{ lineHeight: '1.8' }}>
+      {/* Stats */}
+      <div className="stat-grid" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <div className="stat-value">{route.total_distance_km?.toFixed(1)}</div>
+          <div className="stat-label">km total</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{formatDuration(route.total_duration_minutes)}</div>
+          <div className="stat-label">Tempo estimado</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">R$ {route.cost_estimate?.toFixed(0)}</div>
+          <div className="stat-label">Custo estimado</div>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        {/* Stops */}
+        <div className="card">
+          <div className="card-title">📍 Sequência Otimizada</div>
+          {route.optimized_waypoints?.length > 0 ? (
+            <ol className="ordered-stops">
               {route.optimized_waypoints.map((wp, i) => (
-                <li key={i}>{wp.address}</li>
+                <li key={i} className="stop-item">
+                  <span className="stop-num">{i + 1}</span>
+                  {wp.address}
+                </li>
               ))}
             </ol>
           ) : (
-            <p>No waypoints</p>
+            <p style={{ color: 'var(--gray-400)' }}>Sem paradas</p>
           )}
         </div>
 
-        {/* Map & Actions */}
+        {/* Actions */}
         <div>
-          <h3>Google Maps</h3>
-          {route.google_maps_url ? (
-            <div style={{
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              padding: '20px',
-              textAlign: 'center',
-              marginBottom: '20px'
-            }}>
-              <p style={{ marginBottom: '10px' }}>
-                Click the button to open full route in Google Maps
-              </p>
-              <a
-                href={route.google_maps_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-block',
-                  background: '#dc3545',
-                  color: 'white',
-                  padding: '10px 20px',
-                  textDecoration: 'none',
-                  borderRadius: '4px'
-                }}
-              >
-                Open in Google Maps
+          <div className="card">
+            <div className="card-title">🗺️ Google Maps</div>
+            {route.google_maps_url ? (
+              <a className="maps-btn" href={route.google_maps_url} target="_blank" rel="noopener noreferrer">
+                🗺️ Abrir rota completa no Maps
               </a>
-            </div>
-          ) : (
-            <p style={{ color: '#999' }}>Maps URL not available</p>
-          )}
+            ) : (
+              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem' }}>URL indisponível</p>
+            )}
 
-          <h3 style={{ marginTop: '30px' }}>Actions</h3>
-          <button onClick={() => {
-            const text = `Route Summary:
-Distance: ${route.total_distance_km?.toFixed(2)} km
-Duration: ${route.total_duration_minutes?.toFixed(0)} min
-Cost: R$ ${route.cost_estimate?.toFixed(2)}
+            <button
+              className="btn-secondary"
+              style={{ width: '100%', marginBottom: 10 }}
+              onClick={handleCopy}
+            >
+              {copied ? '✅ Copiado!' : '📋 Copiar resumo da rota'}
+            </button>
 
-Waypoints:
-${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
-            navigator.clipboard.writeText(text)
-            alert('Route copied to clipboard!')
-          }} style={{ width: '100%', marginBottom: '10px' }}>
-            Copy Route Details
-          </button>
-
-          <button onClick={() => navigate('/dashboard')} style={{
-            width: '100%',
-            background: '#28a745'
-          }}>
-            Create New Route
-          </button>
+            <button
+              className="btn-primary"
+              onClick={() => navigate('/dashboard')}
+            >
+              + Criar nova rota
+            </button>
+          </div>
         </div>
       </div>
     </div>

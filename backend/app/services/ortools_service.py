@@ -107,7 +107,14 @@ class OrToolsService:
         wp_order = [node - 1 for node in route_nodes[1:-1]]
         return wp_order, total_m / 1000.0
 
+    _SPEED_KMH = {"moto": 70.0, "leve": 50.0, "pesado": 35.0}
+    _COST_PER_KM = {"moto": 0.25, "leve": 0.50, "pesado": 1.20}
+
     @staticmethod
-    def estimate_cost(distance_km: float, vehicle_type: str = "van") -> float:
-        cost_per_km = {"car": 0.5, "van": 0.8, "truck": 1.2}
-        return distance_km * cost_per_km.get(vehicle_type, 0.8)
+    def get_speed_kmh(vehicle_type: str = "leve") -> float:
+        return OrToolsService._SPEED_KMH.get(vehicle_type, 50.0)
+
+    @staticmethod
+    def estimate_cost(distance_km: float, vehicle_type: str = "leve") -> float:
+        cost = OrToolsService._COST_PER_KM.get(vehicle_type, 0.50)
+        return distance_km * cost

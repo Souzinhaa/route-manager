@@ -162,9 +162,10 @@ async def optimize_route(
     encoded = [quote(a, safe="") for a in all_addresses]
     maps_url = "https://www.google.com/maps/dir/" + "/".join(encoded)
 
-    # distance is in km; minutes = distance / avg_speed_kmh * 60
-    duration_minutes = (distance / settings.avg_speed_kmh) * 60.0 if distance else 0.0
-    cost = OrToolsService.estimate_cost(distance)
+    # distance is in km; minutes = distance / speed_kmh * 60
+    speed_kmh = OrToolsService.get_speed_kmh(req.vehicle_type)
+    duration_minutes = (distance / speed_kmh) * 60.0 if distance else 0.0
+    cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
 
     # Deduct credits after successful optimization
     try:

@@ -80,6 +80,7 @@ class UploadResponse(BaseModel):
 
 class OptimizeRouteRequest(BaseModel):
     optimization_type: OptimizationType = "tsp"
+    vehicle_type: Literal["moto", "leve", "pesado"] = "leve"
     start_address: str = Field(min_length=1, max_length=500)
     end_address: str = Field(min_length=1, max_length=500)
     waypoints: List[Waypoint] = Field(max_length=500)

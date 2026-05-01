@@ -42,20 +42,19 @@ function App() {
         <div>
           <header className="header">
             <div className="container">
-              <h1>🚚 Route Manager</h1>
+              <h1>🚚 Roteirizador</h1>
               {user && (
                 <nav>
-                  <Link to="/dashboard">Dashboard</Link>
-                  <Link to="/upload">Upload NFE</Link>
-                  <span style={{ marginRight: '20px' }}>
-                    {user.full_name} (Credits: {user.credits})
+                  <Link to="/dashboard">Painel</Link>
+                  <Link to="/upload">Importar NFe</Link>
+                  <span className="header-user">
+                    {user.full_name} · <strong>{user.credits.toFixed(0)} créditos</strong>
                   </span>
                   <button onClick={handleLogout} style={{
-                    background: '#dc3545',
+                    background: 'rgba(220,38,38,.85)',
                     padding: '8px 16px',
-                    marginRight: 0
                   }}>
-                    Logout
+                    Sair
                   </button>
                 </nav>
               )}
