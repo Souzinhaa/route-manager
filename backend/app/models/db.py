@@ -76,8 +76,9 @@ def get_engine(settings):
     return create_engine(
         get_db_url(settings),
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10
+        pool_size=3,
+        max_overflow=2,
+        pool_recycle=3600,  # Recycle connections every hour (Neon disconnects idle)
     )
 
 

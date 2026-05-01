@@ -109,8 +109,12 @@ else:
 STATIC_DIR = Path("/app/static")
 ASSETS_DIR = STATIC_DIR / "assets"
 
-if ASSETS_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+try:
+    if ASSETS_DIR.is_dir():
+        app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+        logger.info("[startup] Static files mounted from %s", ASSETS_DIR)
+except Exception as exc:
+    logger.warning("[startup] Could not mount static files: %s", exc)
 
 
 @app.get("/{full_path:path}")
