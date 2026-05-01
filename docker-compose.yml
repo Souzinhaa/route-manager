@@ -75,7 +75,7 @@ services:
     platform: linux/amd64
     image: route_manager:local
     container_name: route_app
-    restart: unless-stopped
+    restart: no
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -114,7 +114,6 @@ services:
           memory: 384M
         reservations:
           memory: 128M
-    restart: "no"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
