@@ -1,7 +1,9 @@
 import logging
+import re
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
+import requests
 import pytesseract
 from defusedxml import ElementTree as DefusedET
 from pdf2image import convert_from_path
@@ -10,6 +12,31 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
+_CEP_RE = re.compile(r"\d{5}-?\d{3}")
+
+
+def _lookup_cep(cep: str) -> Optional[str]:
+    """Query ViaCEP and return formatted address string, or None on failure."""
+    digits = re.sub(r"\D", "", cep)
+    if len(digits) != 8:
+        return None
+    try:
+        resp = requests.get(f"https://viacep.com.br/ws/{digits}/json/", timeout=5)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get("erro"):
+            return None
+        parts = [
+            data.get("logradouro", ""),
+            data.get("bairro", ""),
+            f"{data.get('localidade', '')} - {data.get('uf', '')}".strip(" -"),
+            f"CEP {digits[:5]}-{digits[5:]}",
+        ]
+        return ", ".join(p for p in parts if p).strip()
+    except Exception as exc:
+        logger.warning("ViaCEP lookup failed for %s: %s", cep, exc)
+        return None
 
 
 def _xml_text(element, path: str) -> str:
@@ -17,7 +44,6 @@ def _xml_text(element, path: str) -> str:
         return ""
     found = element.find(path, NS)
     if found is None:
-        # NFe XML may omit namespaces depending on emitter — fall back to local-name lookup.
         local_path = "/".join(seg.split(":")[-1] for seg in path.split("/"))
         for child in element.iter():
             if child.tag.split("}")[-1] == local_path.split("/")[-1]:
@@ -27,6 +53,13 @@ def _xml_text(element, path: str) -> str:
 
 
 def _format_address(parent) -> str:
+    cep = _xml_text(parent, "nfe:CEP")
+    # Prefer ViaCEP lookup for accurate, geocodable address
+    if cep:
+        via_addr = _lookup_cep(cep)
+        if via_addr:
+            return via_addr
+
     parts = [
         _xml_text(parent, "nfe:xLgr"),
         _xml_text(parent, "nfe:nro"),
@@ -36,7 +69,6 @@ def _format_address(parent) -> str:
     bairro = _xml_text(parent, "nfe:xBairro")
     mun = _xml_text(parent, "nfe:xMun")
     uf = _xml_text(parent, "nfe:UF")
-    cep = _xml_text(parent, "nfe:CEP")
 
     sections = [s for s in [street, bairro, f"{mun} - {uf}".strip(" -"), cep] if s.strip()]
     return ", ".join(sections).strip()
@@ -123,14 +155,32 @@ class NFEParser:
     @staticmethod
     def _extract_addresses_from_text(text: str) -> List[Dict]:
         addresses: List[Dict] = []
-        for line in text.split("\n"):
-            stripped = line.strip()
-            if not stripped:
+        seen_ceps: set = set()
+
+        # First pass: find CEPs and look up via ViaCEP
+        for match in _CEP_RE.finditer(text):
+            cep = match.group()
+            digits = re.sub(r"\D", "", cep)
+            if digits in seen_ceps:
                 continue
-            if "CEP" in stripped or "Rua" in stripped or "Av." in stripped:
-                addresses.append({"address": stripped, "type": "unknown"})
+            seen_ceps.add(digits)
+            addr = _lookup_cep(digits)
+            if addr:
+                addresses.append({"address": addr, "type": "unknown"})
             if len(addresses) >= 10:
-                break
+                return addresses
+
+        # Second pass: fallback to keyword lines if no CEPs found
+        if not addresses:
+            for line in text.split("\n"):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if "Rua" in stripped or "Av." in stripped or "Avenida" in stripped:
+                    addresses.append({"address": stripped, "type": "unknown"})
+                if len(addresses) >= 10:
+                    break
+
         return addresses
 
     @staticmethod

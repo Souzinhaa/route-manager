@@ -167,13 +167,28 @@ async def optimize_route(
     duration_minutes = (distance / speed_kmh) * 60.0 if distance else 0.0
     cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
 
-    # Deduct credits after successful optimization
+    # Deduct credits and auto-save route to history
+    from datetime import datetime as _dt
     try:
         current_user.credits -= CREDIT_COST_OPTIMIZE
+        db_route = Route(
+            user_id=current_user.id,
+            name=f"Rota {_dt.now().strftime('%d/%m %H:%M')}",
+            optimization_type=req.optimization_type,
+            start_address=req.start_address,
+            end_address=req.end_address,
+            waypoints=[wp.model_dump() for wp in req.waypoints],
+            optimized_waypoints=optimized_waypoints,
+            google_maps_url=maps_url,
+            total_distance_km=round(distance, 2),
+            total_duration_minutes=round(duration_minutes, 2),
+            cost_estimate=round(cost, 2),
+        )
+        db.add(db_route)
         db.commit()
     except Exception as exc:
         db.rollback()
-        logger.exception("Failed to deduct credits for user %s: %s", current_user.email, exc)
+        logger.exception("Failed to save route / deduct credits for user %s: %s", current_user.email, exc)
 
     return OptimizeRouteResponse(
         optimized_waypoints=optimized_waypoints,

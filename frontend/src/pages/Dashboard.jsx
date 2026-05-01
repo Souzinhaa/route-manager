@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { routeService } from '../services/api'
+import CepInput, { fetchCep, formatCep } from '../components/CepInput'
 
 const VEHICLES = [
   { id: 'moto', icon: '🏍️', label: 'Moto' },
@@ -47,11 +48,29 @@ function Dashboard({ user }) {
     } catch (_) {}
   }
 
-  const addWaypoint = () => {
-    const addr = currentWaypoint.trim()
-    if (!addr) return
+  const addWaypoint = async () => {
+    const val = currentWaypoint.trim()
+    if (!val) return
+    const digits = val.replace(/\D/g, '')
+    let addr = val
+    if (digits.length === 8 && /^\d{5}-?\d{3}$/.test(val.trim())) {
+      const resolved = await fetchCep(digits)
+      if (resolved) addr = resolved
+    }
     setWaypoints(prev => [...prev, { address: addr }])
     setCurrentWaypoint('')
+  }
+
+  const handleWaypointKeyDown = async (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const val = currentWaypoint.trim()
+    const digits = val.replace(/\D/g, '')
+    if (digits.length === 8) {
+      const resolved = await fetchCep(digits)
+      if (resolved) { setCurrentWaypoint(resolved); return }
+    }
+    addWaypoint()
   }
 
   const removeWaypoint = (i) => setWaypoints(prev => prev.filter((_, idx) => idx !== i))
@@ -139,27 +158,19 @@ function Dashboard({ user }) {
           </div>
 
           {/* Addresses */}
-          <div className="form-group">
-            <label>Endereço de Saída</label>
-            <input
-              type="text"
-              value={startAddress}
-              onChange={e => setStartAddress(e.target.value)}
-              placeholder="Ex: Av. Paulista, 1000, São Paulo, SP"
-              required
-            />
-          </div>
+          <CepInput
+            label="Endereço de Saída"
+            value={startAddress}
+            onChange={setStartAddress}
+            placeholder="Ex: Av. Paulista, 1000, São Paulo, SP"
+          />
 
-          <div className="form-group">
-            <label>Endereço de Chegada</label>
-            <input
-              type="text"
-              value={endAddress}
-              onChange={e => setEndAddress(e.target.value)}
-              placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
-              required
-            />
-          </div>
+          <CepInput
+            label="Endereço de Chegada"
+            value={endAddress}
+            onChange={setEndAddress}
+            placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
+          />
 
           {/* NFe import */}
           <div className="nfe-section">
@@ -215,7 +226,7 @@ function Dashboard({ user }) {
                 type="text"
                 value={currentWaypoint}
                 onChange={e => setCurrentWaypoint(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addWaypoint())}
+                onKeyDown={handleWaypointKeyDown}
                 placeholder="Digite um endereço e pressione Enter"
               />
               <button type="button" className="btn-secondary" onClick={addWaypoint}>

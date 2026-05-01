@@ -12,7 +12,18 @@ function formatDuration(min) {
 function Results() {
   const [route, setRoute] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [fuelPrice, setFuelPrice] = useState('')
+  const [fuelConsumption, setFuelConsumption] = useState('')
   const navigate = useNavigate()
+
+  const fuelCost = (() => {
+    const dist = route?.total_distance_km
+    const price = parseFloat(fuelPrice)
+    const consumption = parseFloat(fuelConsumption)
+    if (!dist || !price || !consumption || consumption <= 0) return null
+    const liters = dist / consumption
+    return { liters: liters.toFixed(2), total: (liters * price).toFixed(2) }
+  })()
 
   useEffect(() => {
     const saved = localStorage.getItem('lastRoute')
@@ -100,6 +111,49 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
 
         {/* Actions */}
         <div>
+          {/* Fuel calculator */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">⛽ Calculadora de Combustível</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Preço (R$/L)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={fuelPrice}
+                  onChange={e => setFuelPrice(e.target.value)}
+                  placeholder="Ex: 5.89"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Consumo (km/L)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={fuelConsumption}
+                  onChange={e => setFuelConsumption(e.target.value)}
+                  placeholder="Ex: 12.5"
+                />
+              </div>
+            </div>
+            {fuelCost ? (
+              <div style={{ background: 'var(--primary-light)', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
+                  {fuelCost.liters} L necessários
+                </span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  R$ {fuelCost.total}
+                </span>
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>
+                Preencha os campos acima para calcular o custo do combustível.
+              </p>
+            )}
+          </div>
+
           <div className="card">
             <div className="card-title">🗺️ Google Maps</div>
             {route.google_maps_url ? (
