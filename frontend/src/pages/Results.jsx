@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const VEHICLE_LABEL = { moto: '🏍️ Moto', leve: '🚗 Veículo Leve', pesado: '🚛 Veículo Pesado' }
+const PRIORITY_COLORS = {
+  0: { bg: '#F1F5F9', color: '#64748B' },
+  1: { bg: '#DCFCE7', color: '#15803D' },
+  2: { bg: '#FEF9C3', color: '#A16207' },
+  3: { bg: '#FEE2E2', color: '#B91C1C' },
+}
 
 function formatDuration(min) {
   if (!min) return 'N/A'
@@ -9,21 +15,14 @@ function formatDuration(min) {
   return `${Math.floor(min / 60)}h ${Math.round(min % 60)}min`
 }
 
+function fmt(val) {
+  return val != null ? `R$ ${parseFloat(val).toFixed(2)}` : '—'
+}
+
 function Results() {
   const [route, setRoute] = useState(null)
   const [copied, setCopied] = useState(false)
-  const [fuelPrice, setFuelPrice] = useState('')
-  const [fuelConsumption, setFuelConsumption] = useState('')
   const navigate = useNavigate()
-
-  const fuelCost = (() => {
-    const dist = route?.total_distance_km
-    const price = parseFloat(fuelPrice)
-    const consumption = parseFloat(fuelConsumption)
-    if (!dist || !price || !consumption || consumption <= 0) return null
-    const liters = dist / consumption
-    return { liters: liters.toFixed(2), total: (liters * price).toFixed(2) }
-  })()
 
   useEffect(() => {
     const saved = localStorage.getItem('lastRoute')
@@ -37,7 +36,8 @@ function Results() {
           <div style={{ fontSize: '3rem', marginBottom: 12 }}>🗺️</div>
           <h2 style={{ marginBottom: 8, color: 'var(--gray-700)' }}>Nenhuma rota encontrada</h2>
           <p style={{ color: 'var(--gray-400)', marginBottom: 20 }}>Crie uma rota primeiro.</p>
-          <button className="btn-primary" style={{ width: 'auto', margin: '0 auto', display: 'block' }}
+          <button className="btn-primary"
+            style={{ width: 'auto', margin: '0 auto', display: 'block' }}
             onClick={() => navigate('/dashboard')}>
             Ir para o Painel
           </button>
@@ -46,11 +46,23 @@ function Results() {
     )
   }
 
+  const dist = route.total_distance_km || 0
+  const fuelLiters = (route.fuelPrice && route.fuelConsumption && route.fuelConsumption > 0)
+    ? dist / route.fuelConsumption
+    : null
+  const fuelTotal = fuelLiters ? fuelLiters * route.fuelPrice : null
+  const tollTotal = route.tollCost || null
+  const grandTotal = (fuelTotal != null || tollTotal != null)
+    ? (fuelTotal || 0) + (tollTotal || 0)
+    : null
+
   const handleCopy = () => {
-    const text = `Rota Otimizada
-Distância: ${route.total_distance_km?.toFixed(2)} km
+    const text = `Rota Otimizada — ${VEHICLE_LABEL[route.vehicleType] || ''}
+Distância: ${dist.toFixed(2)} km
 Duração: ${formatDuration(route.total_duration_minutes)}
-Custo estimado: R$ ${route.cost_estimate?.toFixed(2)}
+${fuelTotal != null ? `Combustível: R$ ${fuelTotal.toFixed(2)} (${fuelLiters.toFixed(2)} L)` : ''}
+${tollTotal != null ? `Pedágios: R$ ${tollTotal.toFixed(2)}` : ''}
+${grandTotal != null ? `Total: R$ ${grandTotal.toFixed(2)}` : ''}
 
 Paradas:
 ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
@@ -70,15 +82,13 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
             </span>
           )}
         </div>
-        <button className="btn-secondary" onClick={() => navigate('/dashboard')}>
-          ← Nova Rota
-        </button>
+        <button className="btn-secondary" onClick={() => navigate('/dashboard')}>← Nova Rota</button>
       </div>
 
       {/* Stats */}
       <div className="stat-grid" style={{ marginBottom: 24 }}>
         <div className="stat-card">
-          <div className="stat-value">{route.total_distance_km?.toFixed(1)}</div>
+          <div className="stat-value">{dist.toFixed(1)}</div>
           <div className="stat-label">km total</div>
         </div>
         <div className="stat-card">
@@ -86,8 +96,8 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
           <div className="stat-label">Tempo estimado</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">R$ {route.cost_estimate?.toFixed(0)}</div>
-          <div className="stat-label">Custo estimado</div>
+          <div className="stat-value">{route.optimized_waypoints?.length || 0}</div>
+          <div className="stat-label">Paradas</div>
         </div>
       </div>
 
@@ -97,62 +107,73 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
           <div className="card-title">📍 Sequência Otimizada</div>
           {route.optimized_waypoints?.length > 0 ? (
             <ol className="ordered-stops">
-              {route.optimized_waypoints.map((wp, i) => (
-                <li key={i} className="stop-item">
-                  <span className="stop-num">{i + 1}</span>
-                  {wp.address}
-                </li>
-              ))}
+              {route.optimized_waypoints.map((wp, i) => {
+                const p = wp.priority || 0
+                const pConf = PRIORITY_COLORS[p]
+                return (
+                  <li key={i} className="stop-item">
+                    <span className="stop-num">{i + 1}</span>
+                    <span style={{ flex: 1 }}>{wp.address}</span>
+                    {p > 0 && (
+                      <span style={{
+                        background: pConf.bg, color: pConf.color,
+                        fontSize: '0.7rem', fontWeight: 700,
+                        padding: '2px 7px', borderRadius: 20,
+                      }}>P{p}</span>
+                    )}
+                  </li>
+                )
+              })}
             </ol>
           ) : (
             <p style={{ color: 'var(--gray-400)' }}>Sem paradas</p>
           )}
         </div>
 
-        {/* Actions */}
-        <div>
-          {/* Fuel calculator */}
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-title">⛽ Calculadora de Combustível</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Preço (R$/L)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={fuelPrice}
-                  onChange={e => setFuelPrice(e.target.value)}
-                  placeholder="Ex: 5.89"
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Consumo (km/L)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={fuelConsumption}
-                  onChange={e => setFuelConsumption(e.target.value)}
-                  placeholder="Ex: 12.5"
-                />
-              </div>
+        {/* Costs + Actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Cost breakdown */}
+          {(fuelTotal != null || tollTotal != null) && (
+            <div className="card">
+              <div className="card-title">💰 Custos da Rota</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <tbody>
+                  {fuelTotal != null && (
+                    <>
+                      <tr>
+                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>⛽ Combustível</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(fuelTotal)}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '3px 0 6px', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                          {fuelLiters.toFixed(2)} L × R$ {parseFloat(route.fuelPrice).toFixed(2)}/L
+                          · {dist.toFixed(1)} km ÷ {route.fuelConsumption} km/L
+                        </td>
+                        <td />
+                      </tr>
+                    </>
+                  )}
+                  {tollTotal != null && (
+                    <tr>
+                      <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>🛣️ Pedágios</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(tollTotal)}</td>
+                    </tr>
+                  )}
+                  {grandTotal != null && (
+                    <tr style={{ borderTop: '2px solid var(--gray-200)' }}>
+                      <td style={{ padding: '10px 0 4px', fontWeight: 700, color: 'var(--gray-800)' }}>
+                        Total
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: 'var(--primary)', padding: '10px 0 4px' }}>
+                        {fmt(grandTotal)}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            {fuelCost ? (
-              <div style={{ background: 'var(--primary-light)', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
-                  {fuelCost.liters} L necessários
-                </span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
-                  R$ {fuelCost.total}
-                </span>
-              </div>
-            ) : (
-              <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>
-                Preencha os campos acima para calcular o custo do combustível.
-              </p>
-            )}
-          </div>
+          )}
 
           <div className="card">
             <div className="card-title">🗺️ Google Maps</div>
@@ -161,21 +182,12 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
                 🗺️ Abrir rota completa no Maps
               </a>
             ) : (
-              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem' }}>URL indisponível</p>
+              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem', marginBottom: 12 }}>URL indisponível</p>
             )}
-
-            <button
-              className="btn-secondary"
-              style={{ width: '100%', marginBottom: 10 }}
-              onClick={handleCopy}
-            >
-              {copied ? '✅ Copiado!' : '📋 Copiar resumo da rota'}
+            <button className="btn-secondary" style={{ width: '100%', marginBottom: 10 }} onClick={handleCopy}>
+              {copied ? '✅ Copiado!' : '📋 Copiar resumo'}
             </button>
-
-            <button
-              className="btn-primary"
-              onClick={() => navigate('/dashboard')}
-            >
+            <button className="btn-primary" onClick={() => navigate('/dashboard')}>
               + Criar nova rota
             </button>
           </div>

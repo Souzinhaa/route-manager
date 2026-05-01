@@ -39,6 +39,7 @@ class Waypoint(BaseModel):
     address: str = Field(min_length=1, max_length=500)
     latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
     longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
+    priority: int = Field(default=0, ge=0, le=3)
 
 
 class RouteCreate(BaseModel):

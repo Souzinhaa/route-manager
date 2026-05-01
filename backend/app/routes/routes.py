@@ -154,8 +154,33 @@ async def optimize_route(
                 wp_dict["latitude"], wp_dict["longitude"] = coords
         waypoints.append(wp_dict)
 
-    optimized_indices, distance = OrToolsService.optimize_tsp(waypoints, start_coords, end_coords)
-    optimized_waypoints = [waypoints[i] for i in optimized_indices]
+    # Split by priority: P1/P2/P3 fixed first, P0 optimized
+    fixed = sorted([wp for wp in waypoints if wp.get("priority", 0) > 0],
+                   key=lambda w: w["priority"])
+    free = [wp for wp in waypoints if wp.get("priority", 0) == 0]
+
+    if free:
+        free_indices, free_dist = OrToolsService.optimize_tsp(free, start_coords, end_coords)
+        optimized_free = [free[i] for i in free_indices]
+    else:
+        optimized_free = []
+        free_dist = 0.0
+
+    optimized_waypoints = fixed + optimized_free
+
+    # Recalculate total distance over the full ordered sequence
+    all_points = ([start_coords] +
+                  [(wp["latitude"], wp["longitude"]) for wp in optimized_waypoints
+                   if wp.get("latitude") and wp.get("longitude")] +
+                  [end_coords])
+    if len(all_points) > 1 and all(c and c != (0.0, 0.0) for c in [start_coords, end_coords]):
+        distance = sum(
+            OrToolsService.haversine(all_points[i][0], all_points[i][1],
+                                     all_points[i+1][0], all_points[i+1][1])
+            for i in range(len(all_points) - 1)
+        )
+    else:
+        distance = free_dist
 
     capped = optimized_waypoints[: settings.max_waypoints]
     all_addresses = [req.start_address] + [wp["address"] for wp in capped] + [req.end_address]
