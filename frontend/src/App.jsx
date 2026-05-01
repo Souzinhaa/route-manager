@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
-import { authService } from './services/api'
+import { authService, setToken, getToken } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -13,15 +13,16 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   const handleLogout = useCallback(async () => {
-    try { await authService.logout() } catch (_) { /* cookie cleared server-side */ }
+    try { await authService.logout() } catch (_) { /* ignore */ }
+    setToken(null)
     setUser(null)
   }, [])
 
   useEffect(() => {
-    // Token lives in httpOnly cookie — just ask /me; no localStorage needed.
+    if (!getToken()) { setLoading(false); return }
     authService.getCurrentUser()
       .then(res => setUser(res.data))
-      .catch(() => { /* not authenticated */ })
+      .catch(() => setToken(null))
       .finally(() => setLoading(false))
   }, [])
 

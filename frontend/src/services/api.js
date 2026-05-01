@@ -1,24 +1,25 @@
 import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
+const TOKEN_KEY = 'access_token'
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
-  withCredentials: true,  // send httpOnly cookies on every request
 })
 
-function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY)
 }
 
-// Attach CSRF token to state-changing requests (double-submit cookie pattern)
+export function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
+}
+
+// Attach Bearer token to every request
 api.interceptors.request.use((config) => {
-  const method = (config.method || 'get').toUpperCase()
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = getCsrfToken()
-    if (csrf) config.headers['X-CSRF-Token'] = csrf
-  }
+  const token = getToken()
+  if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
 })
 
