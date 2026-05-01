@@ -5,11 +5,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from starlette.middleware.base import BaseHTTPMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,26 +44,6 @@ settings = get_settings()
 from app.limiter import limiter  # noqa: E402
 
 
-# ── CSRF middleware ────────────────────────────────────────────────────────────
-# Double-submit cookie pattern: login sets csrf_token (non-httpOnly) cookie;
-# all state-changing requests must echo it as X-CSRF-Token header.
-# Auth endpoints are exempt (login/register don't yet have a token).
-_CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-_CSRF_EXEMPT_PATHS = {"/api/auth/login", "/api/auth/register", "/api/auth/logout", "/health"}
-
-
-class CSRFMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        import os
-        if os.getenv("CSRF_ENABLED", "true").lower() != "false":
-            if request.method not in _CSRF_SAFE_METHODS and request.url.path not in _CSRF_EXEMPT_PATHS:
-                csrf_cookie = request.cookies.get("csrf_token")
-                csrf_header = request.headers.get("X-CSRF-Token")
-                if not csrf_cookie or csrf_cookie != csrf_header:
-                    return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
-        return await call_next(request)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("[startup] creating database tables...")
@@ -89,14 +68,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*", "Authorization", "Content-Type", "X-CSRF-Token"],
-    expose_headers=["X-CSRF-Token"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=["*", "Authorization", "Content-Type"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 logger.info("[startup] CORS origins: %s (credentials=%s)", cors_origins, allow_credentials)
-
-# CSRF must come after CORS (CORS sets headers, CSRF reads request headers/cookies)
-app.add_middleware(CSRFMiddleware)
 
 app.include_router(health.router)
 
