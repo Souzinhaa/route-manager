@@ -12,21 +12,14 @@ if [ -z "$DATABASE_URL" ]; then
 
   export DATABASE_URL="postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
   echo "[entrypoint] DATABASE_URL rebuilt: postgresql+psycopg2://${DB_USER}:***@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+
+  echo "[entrypoint] Waiting for local database at ${DB_HOST}:${DB_PORT}..."
+  until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" > /dev/null 2>&1; do
+    sleep 1
+  done
+  echo "[entrypoint] Database is ready"
 else
-  echo "[entrypoint] DATABASE_URL already set (e.g., from Neon), using as-is"
+  echo "[entrypoint] DATABASE_URL already set, skipping pg_isready (cloud DB)"
 fi
-
-# Extract host/port from DATABASE_URL for health check
-DB_URL_CLEAN="${DATABASE_URL#*://}"
-DB_URL_CLEAN="${DB_URL_CLEAN#*@}"  # Remove user:pass@
-DB_HOST_CHECK="${DB_URL_CLEAN%:*}"
-DB_PORT_CHECK="${DB_URL_CLEAN#*:}"
-DB_PORT_CHECK="${DB_PORT_CHECK%/*}"
-
-echo "[entrypoint] Waiting for database at ${DB_HOST_CHECK}:${DB_PORT_CHECK}..."
-until pg_isready -h "${DB_HOST_CHECK}" -p "${DB_PORT_CHECK}" > /dev/null 2>&1; do
-  sleep 1
-done
-echo "[entrypoint] Database is ready"
 
 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers "${WEB_WORKERS:-1}"
