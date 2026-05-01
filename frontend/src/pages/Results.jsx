@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const VEHICLE_LABEL = { moto: '🏍️ Moto', leve: '🚗 Veículo Leve', pesado: '🚛 Veículo Pesado' }
-const PRIORITY_COLORS = {
-  0: { bg: '#F1F5F9', color: '#64748B' },
-  1: { bg: '#DCFCE7', color: '#15803D' },
-  2: { bg: '#FEF9C3', color: '#A16207' },
-  3: { bg: '#FEE2E2', color: '#B91C1C' },
+const VEHICLE_LABEL = {
+  moto:   '🏍️ Moto',
+  leve:   '🚗 Veículo Leve',
+  pesado: '🚛 Veículo Pesado',
 }
 
 function formatDuration(min) {
@@ -17,6 +15,16 @@ function formatDuration(min) {
 
 function fmt(val) {
   return val != null ? `R$ ${parseFloat(val).toFixed(2)}` : '—'
+}
+
+// Estimate toll cost: ~1 praça per 50km
+// moto: R$2.50/praça, leve: R$5.00/praça, pesado: R$5.00 × ceil(eixos/2)/praça
+function estimateToll(distKm, vehicleType, axleCount) {
+  const plazas = Math.floor(distKm / 50)
+  if (plazas === 0) return 0
+  if (vehicleType === 'moto') return plazas * 2.50
+  if (vehicleType === 'pesado') return plazas * 5.00 * Math.ceil((axleCount || 2) / 2)
+  return plazas * 5.00
 }
 
 function Results() {
@@ -31,14 +39,20 @@ function Results() {
 
   if (!route) {
     return (
-      <div className="main container">
-        <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🗺️</div>
-          <h2 style={{ marginBottom: 8, color: 'var(--gray-700)' }}>Nenhuma rota encontrada</h2>
-          <p style={{ color: 'var(--gray-400)', marginBottom: 20 }}>Crie uma rota primeiro.</p>
-          <button className="btn-primary"
-            style={{ width: 'auto', margin: '0 auto', display: 'block' }}
-            onClick={() => navigate('/dashboard')}>
+      <div className="main">
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🗺️</div>
+          <h2 style={{ marginBottom: 8, color: 'var(--gray-700)', fontSize: '1.15rem' }}>
+            Nenhuma rota encontrada
+          </h2>
+          <p style={{ color: 'var(--gray-400)', marginBottom: 20, fontSize: '0.875rem' }}>
+            Crie uma rota primeiro.
+          </p>
+          <button
+            className="btn-primary"
+            style={{ width: 'auto', margin: '0 auto', display: 'block', padding: '10px 24px' }}
+            onClick={() => navigate('/dashboard')}
+          >
             Ir para o Painel
           </button>
         </div>
@@ -47,21 +61,24 @@ function Results() {
   }
 
   const dist = route.total_distance_km || 0
-  const fuelLiters = (route.fuelPrice && route.fuelConsumption && route.fuelConsumption > 0)
-    ? dist / route.fuelConsumption
-    : null
-  const fuelTotal = fuelLiters ? fuelLiters * route.fuelPrice : null
-  const tollTotal = route.tollCost || null
-  const grandTotal = (fuelTotal != null || tollTotal != null)
-    ? (fuelTotal || 0) + (tollTotal || 0)
-    : null
+  const fuelLiters =
+    route.fuelPrice && route.fuelConsumption && route.fuelConsumption > 0
+      ? dist / route.fuelConsumption
+      : null
+  const fuelTotal  = fuelLiters ? fuelLiters * route.fuelPrice : null
+  const tollRaw    = dist > 0 ? estimateToll(dist, route.vehicleType, route.axleCount) : 0
+  const tollTotal  = tollRaw > 0 ? tollRaw : null
+  const grandTotal =
+    fuelTotal != null || tollTotal != null
+      ? (fuelTotal || 0) + (tollTotal || 0)
+      : null
 
   const handleCopy = () => {
     const text = `Rota Otimizada — ${VEHICLE_LABEL[route.vehicleType] || ''}
 Distância: ${dist.toFixed(2)} km
 Duração: ${formatDuration(route.total_duration_minutes)}
 ${fuelTotal != null ? `Combustível: R$ ${fuelTotal.toFixed(2)} (${fuelLiters.toFixed(2)} L)` : ''}
-${tollTotal != null ? `Pedágios: R$ ${tollTotal.toFixed(2)}` : ''}
+${tollTotal != null ? `Pedágios (est.): R$ ${tollTotal.toFixed(2)}` : ''}
 ${grandTotal != null ? `Total: R$ ${grandTotal.toFixed(2)}` : ''}
 
 Paradas:
@@ -72,9 +89,10 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
   }
 
   return (
-    <div className="main container">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
+    <div className="main">
+      {/* Page header row */}
+      <div className="results-header">
+        <div style={{ minWidth: 0 }}>
           <div className="page-title">Rota Otimizada</div>
           {route.vehicleType && (
             <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
@@ -82,11 +100,17 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
             </span>
           )}
         </div>
-        <button className="btn-secondary" onClick={() => navigate('/dashboard')}>← Nova Rota</button>
+        <button
+          className="btn-secondary"
+          onClick={() => navigate('/dashboard')}
+          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+        >
+          Nova Rota
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
+      {/* Stat cards */}
+      <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-value">{dist.toFixed(1)}</div>
           <div className="stat-label">km total</div>
@@ -101,71 +125,97 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
         </div>
       </div>
 
+      {/* Main two-column grid */}
       <div className="grid-2">
-        {/* Stops */}
+        {/* Optimized stops */}
         <div className="card">
-          <div className="card-title">📍 Sequência Otimizada</div>
+          <div className="card-title">Sequência Otimizada</div>
           {route.optimized_waypoints?.length > 0 ? (
             <ol className="ordered-stops">
               {route.optimized_waypoints.map((wp, i) => {
                 const p = wp.priority || 0
-                const pConf = PRIORITY_COLORS[p]
                 return (
                   <li key={i} className="stop-item">
                     <span className="stop-num">{i + 1}</span>
-                    <span style={{ flex: 1 }}>{wp.address}</span>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                      {wp.address}
+                    </span>
                     {p > 0 && (
-                      <span style={{
-                        background: pConf.bg, color: pConf.color,
-                        fontSize: '0.7rem', fontWeight: 700,
-                        padding: '2px 7px', borderRadius: 20,
-                      }}>P{p}</span>
+                      <span
+                        className="priority-pill"
+                        style={{ background: 'var(--primary-light, #EFF6FF)', color: 'var(--primary)' }}
+                      >
+                        #{p}
+                      </span>
                     )}
                   </li>
                 )
               })}
             </ol>
           ) : (
-            <p style={{ color: 'var(--gray-400)' }}>Sem paradas</p>
+            <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem' }}>Sem paradas</p>
           )}
         </div>
 
-        {/* Costs + Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Costs + Actions column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
           {/* Cost breakdown */}
           {(fuelTotal != null || tollTotal != null) && (
             <div className="card">
-              <div className="card-title">💰 Custos da Rota</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <div className="card-title">Custos da Rota</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <tbody>
                   {fuelTotal != null && (
                     <>
                       <tr>
-                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>⛽ Combustível</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(fuelTotal)}</td>
+                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>Combustível</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {fmt(fuelTotal)}
+                        </td>
                       </tr>
                       <tr>
-                        <td style={{ padding: '3px 0 6px', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                        <td
+                          colSpan={2}
+                          style={{ padding: '0 0 8px', color: 'var(--gray-400)', fontSize: '0.78rem',
+                            overflowWrap: 'break-word', wordBreak: 'break-word' }}
+                        >
                           {fuelLiters.toFixed(2)} L × R$ {parseFloat(route.fuelPrice).toFixed(2)}/L
-                          · {dist.toFixed(1)} km ÷ {route.fuelConsumption} km/L
+                          &nbsp;·&nbsp; {dist.toFixed(1)} km ÷ {route.fuelConsumption} km/L
                         </td>
-                        <td />
                       </tr>
                     </>
                   )}
                   {tollTotal != null && (
-                    <tr>
-                      <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>🛣️ Pedágios</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(tollTotal)}</td>
-                    </tr>
+                    <>
+                      <tr>
+                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>Pedágios (est.)</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {fmt(tollTotal)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={{ padding: '0 0 8px', color: 'var(--gray-400)', fontSize: '0.78rem' }}
+                        >
+                          ~1 praça a cada 50 km
+                          {route.vehicleType === 'pesado' && route.axleCount
+                            ? ` · ${route.axleCount} eixos`
+                            : ''}
+                        </td>
+                      </tr>
+                    </>
                   )}
                   {grandTotal != null && (
                     <tr style={{ borderTop: '2px solid var(--gray-200)' }}>
                       <td style={{ padding: '10px 0 4px', fontWeight: 700, color: 'var(--gray-800)' }}>
                         Total
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: 'var(--primary)', padding: '10px 0 4px' }}>
+                      <td style={{
+                        textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
+                        color: 'var(--primary)', padding: '10px 0 4px', whiteSpace: 'nowrap',
+                      }}>
                         {fmt(grandTotal)}
                       </td>
                     </tr>
@@ -175,17 +225,29 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
             </div>
           )}
 
+          {/* Maps + actions */}
           <div className="card">
-            <div className="card-title">🗺️ Google Maps</div>
+            <div className="card-title">Google Maps</div>
             {route.google_maps_url ? (
-              <a className="maps-btn" href={route.google_maps_url} target="_blank" rel="noopener noreferrer">
-                🗺️ Abrir rota completa no Maps
+              <a
+                className="maps-btn"
+                href={route.google_maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Abrir rota completa no Maps
               </a>
             ) : (
-              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem', marginBottom: 12 }}>URL indisponível</p>
+              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem', marginBottom: 12 }}>
+                URL indisponível
+              </p>
             )}
-            <button className="btn-secondary" style={{ width: '100%', marginBottom: 10 }} onClick={handleCopy}>
-              {copied ? '✅ Copiado!' : '📋 Copiar resumo'}
+            <button
+              className="btn-secondary"
+              style={{ width: '100%', marginBottom: 10 }}
+              onClick={handleCopy}
+            >
+              {copied ? 'Copiado!' : 'Copiar resumo'}
             </button>
             <button className="btn-primary" onClick={() => navigate('/dashboard')}>
               + Criar nova rota

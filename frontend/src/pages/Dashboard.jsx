@@ -4,16 +4,32 @@ import { routeService } from '../services/api'
 import { fetchCep } from '../components/CepInput'
 
 const VEHICLES = [
-  { id: 'moto', icon: '🏍️', label: 'Moto' },
-  { id: 'leve', icon: '🚗', label: 'Veículo Leve' },
-  { id: 'pesado', icon: '🚛', label: 'Veículo Pesado' },
+  { id: 'moto',   icon: '🏍️', label: 'Moto' },
+  { id: 'leve',   icon: '🚗', label: 'Leve' },
+  { id: 'pesado', icon: '🚛', label: 'Pesado' },
 ]
 
-const PRIORITY_COLORS = {
-  0: { bg: '#F1F5F9', color: '#64748B', label: 'P0' },
-  1: { bg: '#DCFCE7', color: '#15803D', label: 'P1' },
-  2: { bg: '#FEF9C3', color: '#A16207', label: 'P2' },
-  3: { bg: '#FEE2E2', color: '#B91C1C', label: 'P3' },
+// ATM-style masks: user types digits only
+function applyPriceMask(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const n = parseInt(digits, 10)
+  const reais = Math.floor(n / 100)
+  const centavos = n % 100
+  return `${reais},${String(centavos).padStart(2, '0')}`
+}
+
+function applyConsumptionMask(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const n = parseInt(digits, 10)
+  return `${Math.floor(n / 10)},${n % 10}`
+}
+
+function parseMasked(str) {
+  if (!str) return null
+  const parsed = parseFloat(str.replace(',', '.'))
+  return isNaN(parsed) ? null : parsed
 }
 
 async function resolveAddress(val) {
@@ -25,13 +41,14 @@ async function resolveAddress(val) {
   return val
 }
 
+/* ── Address field with optional CEP lookup ── */
 function AddressField({ label, value, onChange, placeholder }) {
   const [cep, setCep] = useState('')
-  const [cepStatus, setCepStatus] = useState(null) // null | 'loading' | 'ok' | 'err'
+  const [cepStatus, setCepStatus] = useState(null)
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
-    const formatted = raw.length > 5 ? `${raw.slice(0,5)}-${raw.slice(5)}` : raw
+    const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
     setCep(formatted)
     setCepStatus(null)
     if (raw.length === 8) {
@@ -45,18 +62,24 @@ function AddressField({ label, value, onChange, placeholder }) {
   return (
     <div className="form-group">
       <label>{label}</label>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+      <div className="cep-row" style={{ marginBottom: 6 }}>
         <input
           type="text"
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP (opcional)"
-          style={{ maxWidth: 130 }}
+          style={{ width: 120, flex: 'none' }}
           maxLength={9}
         />
-        {cepStatus === 'loading' && <span style={{ alignSelf: 'center', fontSize: '0.8rem', color: 'var(--gray-400)' }}>🔍</span>}
-        {cepStatus === 'ok' && <span style={{ alignSelf: 'center', fontSize: '0.8rem', color: 'var(--success)' }}>✅</span>}
-        {cepStatus === 'err' && <span style={{ alignSelf: 'center', fontSize: '0.8rem', color: 'var(--danger)' }}>CEP não encontrado</span>}
+        {cepStatus === 'loading' && (
+          <span className="cep-status" style={{ color: 'var(--gray-400)' }}>Buscando...</span>
+        )}
+        {cepStatus === 'ok' && (
+          <span className="cep-status" style={{ color: 'var(--success)' }}>Encontrado</span>
+        )}
+        {cepStatus === 'err' && (
+          <span className="cep-status" style={{ color: 'var(--danger)' }}>CEP inválido</span>
+        )}
       </div>
       <input
         type="text"
@@ -68,13 +91,15 @@ function AddressField({ label, value, onChange, placeholder }) {
   )
 }
 
+/* ── Single waypoint row ── */
 function WaypointRow({ wp, index, onChange, onRemove }) {
   const [cep, setCep] = useState('')
   const [cepStatus, setCepStatus] = useState(null)
+  const hasPriority = wp.priority > 0
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
-    const formatted = raw.length > 5 ? `${raw.slice(0,5)}-${raw.slice(5)}` : raw
+    const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
     setCep(formatted)
     setCepStatus(null)
     if (raw.length === 8) {
@@ -85,65 +110,64 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
     }
   }
 
-  const pConf = PRIORITY_COLORS[wp.priority]
-
   return (
-    <div style={{ border: '1.5px solid var(--gray-200)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, background: 'white' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+    <div className={`waypoint-card${hasPriority ? ' waypoint-priority' : ''}`}>
+      <div className="waypoint-card-top">
         <span className="waypoint-num">{index + 1}</span>
         <input
           type="text"
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
-          style={{ maxWidth: 110, fontSize: '0.8rem', padding: '6px 10px' }}
+          style={{ width: 90, flex: 'none', fontSize: '0.82rem', padding: '6px 9px' }}
           maxLength={9}
         />
-        {cepStatus === 'loading' && <span style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>🔍</span>}
-        {cepStatus === 'ok' && <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>✅</span>}
-        <span
-          style={{
-            marginLeft: 'auto',
-            background: pConf.bg,
-            color: pConf.color,
-            fontWeight: 700,
-            fontSize: '0.75rem',
-            padding: '2px 8px',
-            borderRadius: 20,
-          }}
-        >
-          {pConf.label}
-        </span>
-        <button type="button" className="btn-danger" onClick={onRemove}>✕</button>
+        {cepStatus === 'loading' && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>...</span>
+        )}
+        {cepStatus === 'ok' && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--success)', whiteSpace: 'nowrap' }}>✓</span>
+        )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>Ordem</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={wp.priority || ''}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10)
+              onChange({ ...wp, priority: isNaN(v) || v < 1 ? 0 : v })
+            }}
+            placeholder="—"
+            title="Número na ordem de entrega (1 = primeiro). Em branco = otimização automática."
+            style={{ width: 54, padding: '6px 8px', fontSize: '0.82rem', textAlign: 'center', flexShrink: 0 }}
+          />
+          <button type="button" className="btn-danger" onClick={onRemove} style={{ flexShrink: 0 }}>✕</button>
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>
+
+      <div className="waypoint-card-bottom">
         <input
           type="text"
           value={wp.address}
           onChange={e => onChange({ ...wp, address: e.target.value })}
           placeholder="Endereço completo"
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
         />
-        <select
-          value={wp.priority}
-          onChange={e => onChange({ ...wp, priority: parseInt(e.target.value) })}
-          style={{ width: 70, padding: '8px 6px', fontSize: '0.85rem' }}
-        >
-          <option value={0}>P0</option>
-          <option value={1}>P1</option>
-          <option value={2}>P2</option>
-          <option value={3}>P3</option>
-        </select>
       </div>
-      {wp.priority > 0 && (
-        <p style={{ fontSize: '0.72rem', color: pConf.color, marginTop: 4 }}>
-          ⚡ Prioridade {wp.priority} — entregue antes das paradas P0
+
+      {hasPriority && (
+        <p style={{ fontSize: '0.7rem', color: 'var(--primary)', marginTop: 5 }}>
+          {wp.priority}ª parada na sequência de entrega
         </p>
       )}
     </div>
   )
 }
 
+/* ── Dashboard page ── */
 function Dashboard({ user }) {
   const [routes, setRoutes] = useState([])
   const [vehicleType, setVehicleType] = useState('leve')
@@ -156,9 +180,9 @@ function Dashboard({ user }) {
   const [nfeFile, setNfeFile] = useState(null)
   const [nfeLoading, setNfeLoading] = useState(false)
   const [nfeCount, setNfeCount] = useState(0)
-  const [fuelPrice, setFuelPrice] = useState('')
-  const [fuelConsumption, setFuelConsumption] = useState('')
-  const [tollCost, setTollCost] = useState('')
+  const [fuelPrice, setFuelPrice] = useState('')       // masked string e.g. "5,89"
+  const [fuelConsumption, setFuelConsumption] = useState('') // masked string e.g. "12,5"
+  const [axleCount, setAxleCount] = useState(2)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const nfeInputRef = useRef()
@@ -234,9 +258,9 @@ function Dashboard({ user }) {
       localStorage.setItem('lastRoute', JSON.stringify({
         ...res.data,
         vehicleType,
-        fuelPrice: fuelPrice ? parseFloat(fuelPrice) : null,
-        fuelConsumption: fuelConsumption ? parseFloat(fuelConsumption) : null,
-        tollCost: tollCost ? parseFloat(tollCost) : null,
+        fuelPrice: parseMasked(fuelPrice),
+        fuelConsumption: parseMasked(fuelConsumption),
+        axleCount,
       }))
       setSuccess('Rota otimizada! Redirecionando...')
       setTimeout(() => navigate('/results'), 1200)
@@ -257,12 +281,14 @@ function Dashboard({ user }) {
   const hasPriority = waypoints.some(w => w.priority > 0)
 
   return (
-    <div className="main container">
+    <div className="main">
       <div className="page-title">Otimizar Rota</div>
-      <div className="page-subtitle">Configure paradas, prioridades e veículo para calcular a melhor rota.</div>
+      <div className="page-subtitle">
+        Configure paradas, prioridades e veículo para calcular a melhor rota.
+      </div>
 
       <div className="grid-2">
-        {/* Form */}
+        {/* ── Form card ── */}
         <div className="card">
           {error && <div className="error">{error}</div>}
           {success && <div className="success">{success}</div>}
@@ -285,7 +311,7 @@ function Dashboard({ user }) {
             </div>
           </div>
 
-          {/* Addresses */}
+          {/* Origin / Destination */}
           <AddressField
             label="Endereço de Saída"
             value={startAddress}
@@ -299,56 +325,93 @@ function Dashboard({ user }) {
             placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
           />
 
-          {/* Fuel + Toll */}
-          <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>
-              ⛽ Custos (opcional)
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <div>
-                <label>Preço combustível (R$/L)</label>
-                <input type="number" step="0.01" min="0" value={fuelPrice}
-                  onChange={e => setFuelPrice(e.target.value)} placeholder="Ex: 5.89" />
+          {/* Fuel & costs */}
+          <div className="fuel-block">
+            <div className="fuel-block-label">Custos (opcional)</div>
+            <div className="fuel-grid">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Combustível (R$/L)</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--gray-400)', fontSize: '0.875rem', pointerEvents: 'none',
+                  }}>R$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={fuelPrice}
+                    onChange={e => setFuelPrice(applyPriceMask(e.target.value))}
+                    placeholder="0,00"
+                    style={{ paddingLeft: 32 }}
+                  />
+                </div>
               </div>
-              <div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Consumo (km/L)</label>
-                <input type="number" step="0.1" min="0" value={fuelConsumption}
-                  onChange={e => setFuelConsumption(e.target.value)} placeholder="Ex: 12.5" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={fuelConsumption}
+                  onChange={e => setFuelConsumption(applyConsumptionMask(e.target.value))}
+                  placeholder="0,0"
+                />
               </div>
-              <div>
-                <label>Pedágios estimados (R$)</label>
-                <input type="number" step="0.50" min="0" value={tollCost}
-                  onChange={e => setTollCost(e.target.value)} placeholder="Ex: 25.00" />
-              </div>
+              {vehicleType === 'pesado' && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Nº de Eixos</label>
+                  <select
+                    value={axleCount}
+                    onChange={e => setAxleCount(parseInt(e.target.value, 10))}
+                  >
+                    {[2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                      <option key={n} value={n}>{n} eixos</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: 8 }}>
+              Pedágios estimados automaticamente pela distância da rota.
+            </p>
           </div>
 
-          {/* NFe import */}
+          {/* NFe import accordion */}
           <div className="nfe-section">
             <button
               type="button"
               className={`nfe-toggle${nfeOpen ? ' open' : ''}`}
               onClick={() => setNfeOpen(o => !o)}
             >
-              📎 Importar endereços de NFe
+              Importar endereços de NFe
               {nfeCount > 0 && (
-                <span className="nfe-badge" style={{ marginLeft: 8 }}>{nfeCount} importados</span>
+                <span className="nfe-badge" style={{ marginLeft: 8 }}>
+                  {nfeCount} importados
+                </span>
               )}
               <span className="chevron">▼</span>
             </button>
+
             {nfeOpen && (
               <div className="nfe-body">
                 <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginBottom: 12 }}>
-                  Upload de XML, PDF ou imagem de NFe. CEPs são consultados automaticamente via ViaCEP.
+                  Upload de XML, PDF ou imagem de NFe. CEPs consultados via ViaCEP.
                 </p>
                 <div className="nfe-upload-row">
-                  <div className="form-group">
-                    <input ref={nfeInputRef} type="file" accept=".xml,.pdf,.png,.jpg,.jpeg"
-                      onChange={e => setNfeFile(e.target.files[0])} />
+                  <div className="form-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
+                    <input
+                      ref={nfeInputRef}
+                      type="file"
+                      accept=".xml,.pdf,.png,.jpg,.jpeg"
+                      onChange={e => setNfeFile(e.target.files[0])}
+                    />
                   </div>
-                  <button type="button" className="btn-success"
-                    onClick={handleNfeUpload} disabled={!nfeFile || nfeLoading}
-                    style={{ width: 'auto', marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    className="btn-success"
+                    onClick={handleNfeUpload}
+                    disabled={!nfeFile || nfeLoading}
+                    style={{ width: 'auto', flexShrink: 0 }}
+                  >
                     {nfeLoading ? '...' : 'Extrair'}
                   </button>
                 </div>
@@ -356,16 +419,19 @@ function Dashboard({ user }) {
             )}
           </div>
 
-          {/* Waypoints */}
+          {/* Waypoints list */}
           <div className="form-group">
             <label>
               Paradas ({waypoints.length})
               {hasPriority && (
-                <span style={{ marginLeft: 8, fontSize: '0.72rem', fontWeight: 400, color: 'var(--gray-500)' }}>
-                  P1 → P2 → P3 → P0 (otimizado)
+                <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 400, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
+                  paradas com ordem definida entregues primeiro
                 </span>
               )}
             </label>
+            <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: -4, marginBottom: 8 }}>
+              Defina um número em "Ordem" para fixar a sequência. Em branco = otimização automática.
+            </p>
 
             {waypoints.map((wp, i) => (
               <WaypointRow
@@ -387,7 +453,7 @@ function Dashboard({ user }) {
                   e.preventDefault()
                   addWaypoint()
                 }}
-                placeholder="CEP ou endereço completo + Enter"
+                placeholder="CEP ou endereço + Enter"
               />
               <button type="button" className="btn-secondary" onClick={addWaypoint}>
                 + Adicionar
@@ -400,16 +466,16 @@ function Dashboard({ user }) {
             onClick={handleOptimize}
             disabled={loading || !startAddress || !endAddress || waypoints.length === 0}
           >
-            {loading ? '⏳ Otimizando...' : '🗺️ Otimizar Rota'}
+            {loading ? 'Otimizando...' : 'Otimizar Rota'}
           </button>
         </div>
 
-        {/* History */}
+        {/* ── Route history ── */}
         <div>
-          <div className="card-title" style={{ marginBottom: 16 }}>📋 Rotas Recentes</div>
+          <div className="card-title" style={{ marginBottom: 14 }}>Rotas Recentes</div>
           {routes.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', color: 'var(--gray-400)', padding: 40 }}>
-              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🗺️</div>
+            <div className="card" style={{ textAlign: 'center', color: 'var(--gray-400)', padding: 36 }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>🗺️</div>
               <p>Nenhuma rota ainda.<br />Crie sua primeira rota!</p>
             </div>
           ) : (
@@ -421,16 +487,20 @@ function Dashboard({ user }) {
                     <span className="badge">{route.optimization_type.toUpperCase()}</span>
                   </div>
                   <div className="route-item-meta">
-                    <span>📍 {route.start_address}</span>
+                    <span>{route.start_address}</span>
                     {route.total_distance_km && (
-                      <span>📏 {route.total_distance_km.toFixed(1)} km</span>
+                      <span>{route.total_distance_km.toFixed(1)} km</span>
                     )}
                     {route.total_duration_minutes && (
-                      <span>⏱ {formatDuration(route.total_duration_minutes)}</span>
+                      <span>{formatDuration(route.total_duration_minutes)}</span>
                     )}
                     {route.google_maps_url && (
-                      <a href={route.google_maps_url} target="_blank" rel="noopener noreferrer"
-                        style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
+                      <a
+                        href={route.google_maps_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
+                      >
                         Ver Maps →
                       </a>
                     )}

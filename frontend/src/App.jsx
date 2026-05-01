@@ -11,11 +11,13 @@ import Results from './pages/Results'
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [navOpen, setNavOpen] = useState(false)
 
   const handleLogout = useCallback(async () => {
     try { await authService.logout() } catch (_) { /* ignore */ }
     setToken(null)
     setUser(null)
+    setNavOpen(false)
   }, [])
 
   useEffect(() => {
@@ -32,6 +34,9 @@ function App() {
     return () => window.removeEventListener('auth:logout', handleLogout)
   }, [handleLogout])
 
+  // Close nav on route change (clicking a link)
+  const closeNav = () => setNavOpen(false)
+
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>
   }
@@ -39,47 +44,66 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          {/* ── Header ── */}
           <header className="header">
-            <div className="container">
-              <h1>🚚 Roteirizador</h1>
+            <div className="header-inner">
+              {/* Logo */}
+              <Link to={user ? '/dashboard' : '/login'} className="header-logo" onClick={closeNav}>
+                <span className="header-logo-icon">🚚</span>
+                <span className="header-logo-text">Roteirizador</span>
+              </Link>
+
+              {/* Hamburger — mobile only, shown only when user is logged in */}
               {user && (
-                <nav>
-                  <Link to="/dashboard">Painel</Link>
-                  <Link to="/upload">Importar NFe</Link>
-                  <span className="header-user">
-                    {user.full_name} · <strong>{user.credits.toFixed(0)} créditos</strong>
-                  </span>
-                  <button onClick={handleLogout} style={{
-                    background: 'rgba(220,38,38,.85)',
-                    padding: '8px 16px',
-                  }}>
-                    Sair
-                  </button>
-                </nav>
+                <button
+                  className="header-hamburger"
+                  onClick={() => setNavOpen(o => !o)}
+                  aria-label={navOpen ? 'Fechar menu' : 'Abrir menu'}
+                  aria-expanded={navOpen}
+                >
+                  {navOpen ? '✕' : '☰'}
+                </button>
               )}
             </div>
+
+            {/* Nav — toggled on mobile, always visible on desktop */}
+            {user && (
+              <nav className={`header-nav${navOpen ? ' nav-open' : ''}`}>
+                <Link to="/dashboard" onClick={closeNav}>Painel</Link>
+                <Link to="/upload" onClick={closeNav}>Importar NFe</Link>
+                <span className="header-nav-user">
+                  {user.full_name} &middot; <strong>{user.credits.toFixed(0)} créditos</strong>
+                </span>
+                <button className="header-nav-logout" onClick={handleLogout}>
+                  Sair
+                </button>
+              </nav>
+            )}
           </header>
 
-          <div className="container">
-            <Routes>
-              <Route path="/login" element={<Login setUser={setUser} />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-                path="/dashboard"
-                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/upload"
-                element={user ? <Upload user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/results"
-                element={user ? <Results user={user} /> : <Navigate to="/login" />}
-              />
-              <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
-            </Routes>
-          </div>
+          {/* ── Page content ── */}
+          <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
+            <div className="container">
+              <Routes>
+                <Route path="/login" element={<Login setUser={setUser} />} />
+                <Route path="/register" element={<Register />} />
+                <Route
+                  path="/dashboard"
+                  element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/upload"
+                  element={user ? <Upload user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/results"
+                  element={user ? <Results user={user} /> : <Navigate to="/login" />}
+                />
+                <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+              </Routes>
+            </div>
+          </main>
         </div>
       </Router>
     </ErrorBoundary>
