@@ -68,57 +68,57 @@ services:
       retries: 5
 
   # # ── FastAPI + SPA ──────────────────────────────────────────────────────────
-  # app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   platform: linux/amd64
-  #   image: route_manager:local
-  #   container_name: route_app
-  #   restart: unless-stopped
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   environment:
-  #     # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
-  #     # double-belt: pydantic-settings reads env vars first, so this value
-  #     # wins over the localhost default in app/config.py.
-  #     DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
-  #     DB_HOST: db
-  #     DB_PORT: 5432
-  #     DB_NAME: route_manager
-  #     DB_USER: postgres
-  #     POSTGRES_DB: route_manager
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-  #     SECRET_KEY: ${SECRET_KEY:-change-me-in-production-min-32-chars}
-  #     GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
-  #     UPLOAD_DIR: /app/uploads
-  #     PORT: 8000
-  #     WEB_WORKERS: ${WEB_WORKERS:-1}
-  #     ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
-  #     MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
-  #     MAX_WAYPOINTS: ${MAX_WAYPOINTS:-198}
-  #     AVG_SPEED_KMH: ${AVG_SPEED_KMH:-50}
-  #     CORS_ORIGINS: ${CORS_ORIGINS:-*}
-  #   ports:
-  #     - "8010:8000"
-  #   volumes:
-  #     - uploads_data:/app/uploads
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "1.0"
-  #         memory: 384M
-  #       reservations:
-  #         memory: 128M
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: route_manager:local
+    container_name: route_app
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
+      # double-belt: pydantic-settings reads env vars first, so this value
+      # wins over the localhost default in app/config.py.
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: route_manager
+      DB_USER: postgres
+      POSTGRES_DB: route_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-min-32-chars}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      UPLOAD_DIR: /app/uploads
+      PORT: 8000
+      WEB_WORKERS: ${WEB_WORKERS:-1}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      MAX_WAYPOINTS: ${MAX_WAYPOINTS:-198}
+      AVG_SPEED_KMH: ${AVG_SPEED_KMH:-50}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    ports:
+      - "8010:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   db_data:
