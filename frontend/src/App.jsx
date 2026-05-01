@@ -54,30 +54,40 @@ function App() {
                 <span className="header-logo-text">Roteirizador</span>
               </Link>
 
-              {/* Hamburger — mobile only, shown only when user is logged in */}
               {user && (
-                <button
-                  className="header-hamburger"
-                  onClick={() => setNavOpen(o => !o)}
-                  aria-label={navOpen ? 'Fechar menu' : 'Abrir menu'}
-                  aria-expanded={navOpen}
-                >
-                  {navOpen ? '✕' : '☰'}
-                </button>
+                <>
+                  {/* Desktop nav — inline in header-inner */}
+                  <nav className="header-nav-desktop">
+                    <Link to="/dashboard">Painel</Link>
+                    <Link to="/upload">Importar NFe</Link>
+                    <span className="header-user-info">
+                      {user.full_name} &middot; <strong>{user.credits.toFixed(0)}</strong> créditos
+                    </span>
+                    <button className="header-logout-btn" onClick={handleLogout}>Sair</button>
+                  </nav>
+
+                  {/* Hamburger — mobile only */}
+                  <button
+                    className="header-hamburger"
+                    onClick={() => setNavOpen(o => !o)}
+                    aria-label={navOpen ? 'Fechar menu' : 'Abrir menu'}
+                    aria-expanded={navOpen}
+                  >
+                    {navOpen ? '✕' : '☰'}
+                  </button>
+                </>
               )}
             </div>
 
-            {/* Nav — toggled on mobile, always visible on desktop */}
-            {user && (
-              <nav className={`header-nav${navOpen ? ' nav-open' : ''}`}>
+            {/* Mobile dropdown nav */}
+            {user && navOpen && (
+              <nav className="header-nav-mobile">
                 <Link to="/dashboard" onClick={closeNav}>Painel</Link>
                 <Link to="/upload" onClick={closeNav}>Importar NFe</Link>
-                <span className="header-nav-user">
+                <div className="mobile-nav-user">
                   {user.full_name} &middot; <strong>{user.credits.toFixed(0)} créditos</strong>
-                </span>
-                <button className="header-nav-logout" onClick={handleLogout}>
-                  Sair
-                </button>
+                </div>
+                <button className="mobile-nav-logout" onClick={handleLogout}>Sair</button>
               </nav>
             )}
           </header>

@@ -65,11 +65,11 @@ body {
 }
 
 /* ────────────────────────────────────────────
-   HEADER — slim, compact, mobile-first
+   HEADER — single-row, clean
 ──────────────────────────────────────────── */
 .header {
-  background: linear-gradient(135deg, var(--header-bg) 0%, var(--primary) 100%);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, .35);
+  background: var(--header-bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
   position: sticky;
   top: 0;
   z-index: 200;
@@ -79,169 +79,181 @@ body {
 .header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: var(--header-h);
   padding: 0 16px;
   max-width: 1200px;
   margin: 0 auto;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Logo */
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   text-decoration: none;
   flex-shrink: 0;
 }
 
 .header-logo-icon {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1;
 }
 
 .header-logo-text {
   color: white;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
-/* Hamburger button (mobile only) */
+/* Hamburger — mobile only */
 .header-hamburger {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: rgba(255, 255, 255, .12);
-  border: none;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 7px;
   color: white;
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
   padding: 0;
+  margin-left: auto;
   flex-shrink: 0;
   transition: background .15s;
 }
 
 .header-hamburger:hover {
-  background: rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .18);
 }
 
-.header-hamburger:active {
-  transform: scale(.95);
-}
-
-/* Nav — hidden on mobile by default, shown when open */
-.header-nav {
+/* Desktop nav — sits inside header-inner, pushed to right */
+.header-nav-desktop {
   display: none;
-  flex-direction: column;
-  background: var(--header-bg);
-  border-top: 1px solid rgba(255, 255, 255, .12);
-  padding: 10px 16px 14px;
-  gap: 4px;
-  width: 100%;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.header-nav.nav-open {
-  display: flex;
-}
-
-.header-nav a,
-.header-nav .header-nav-link {
-  color: rgba(255, 255, 255, .88);
+.header-nav-desktop a {
+  color: rgba(255, 255, 255, .82);
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
-  padding: 9px 12px;
-  border-radius: 8px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+
+.header-nav-desktop a:hover {
+  background: rgba(255, 255, 255, .12);
+  color: white;
+}
+
+.header-user-info {
+  font-size: 0.775rem;
+  color: rgba(255, 255, 255, .6);
+  padding: 0 6px 0 10px;
+  white-space: nowrap;
+  border-left: 1px solid rgba(255, 255, 255, .15);
+  margin-left: 6px;
+}
+
+.header-user-info strong {
+  color: rgba(255, 255, 255, .9);
+  font-weight: 600;
+}
+
+.header-logout-btn {
+  background: rgba(255, 255, 255, .1);
+  color: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.header-logout-btn:hover {
+  background: rgba(255, 255, 255, .2);
+  color: white;
+}
+
+/* Mobile dropdown nav */
+.header-nav-mobile {
+  display: flex;
+  flex-direction: column;
+  background: var(--header-bg);
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  padding: 8px 16px 14px;
+  gap: 2px;
+}
+
+.header-nav-mobile a {
+  color: rgba(255, 255, 255, .85);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 10px 12px;
+  border-radius: 7px;
   transition: background .15s;
   display: block;
-  overflow-wrap: break-word;
-  word-break: break-word;
 }
 
-.header-nav a:hover,
-.header-nav .header-nav-link:hover {
-  background: rgba(255, 255, 255, .15);
+.header-nav-mobile a:hover {
+  background: rgba(255, 255, 255, .1);
   color: white;
 }
 
-.header-nav-user {
+.mobile-nav-user {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, .7);
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, .08);
-  border-radius: 8px;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  color: rgba(255, 255, 255, .55);
+  padding: 8px 12px 6px;
+  margin-top: 2px;
 }
 
-.header-nav-user strong {
-  color: white;
+.mobile-nav-user strong {
+  color: rgba(255, 255, 255, .85);
 }
 
-.header-nav-logout {
-  background: rgba(220, 38, 38, .8) !important;
-  color: white !important;
-  font-weight: 600 !important;
-  margin-top: 4px;
-  text-align: center;
-  cursor: pointer;
-  border: none;
-  width: 100%;
-  font-family: inherit;
+.mobile-nav-logout {
+  background: rgba(255, 255, 255, .1) !important;
+  color: rgba(255, 255, 255, .88) !important;
+  border: 1px solid rgba(255, 255, 255, .2) !important;
+  border-radius: 7px;
+  padding: 9px 12px;
   font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  margin-top: 4px;
 }
 
-.header-nav-logout:hover {
-  background: rgba(220, 38, 38, 1) !important;
-}
-
-/* Desktop nav: switch layout */
+/* Desktop: show desktop nav, hide hamburger */
 @media (min-width: 768px) {
   .header-inner {
     padding: 0 24px;
   }
 
+  .header-nav-desktop {
+    display: flex;
+  }
+
   .header-hamburger {
     display: none;
-  }
-
-  .header-nav {
-    display: flex !important;
-    flex-direction: row;
-    align-items: center;
-    background: transparent;
-    border-top: none;
-    padding: 0;
-    gap: 4px;
-    width: auto;
-    flex-shrink: 0;
-  }
-
-  .header-nav a,
-  .header-nav .header-nav-link {
-    padding: 6px 12px;
-    display: inline-flex;
-    align-items: center;
-    white-space: nowrap;
-  }
-
-  .header-nav-user {
-    padding: 5px 10px;
-    font-size: 0.78rem;
-    white-space: nowrap;
-  }
-
-  .header-nav-logout {
-    width: auto;
-    padding: 6px 14px;
-    border-radius: 8px;
-    margin-top: 0;
   }
 }
 

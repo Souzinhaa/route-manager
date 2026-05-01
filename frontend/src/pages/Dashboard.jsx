@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { routeService } from '../services/api'
-import { fetchCep } from '../components/CepInput'
+import { fetchCepData, buildAddressFromCepData } from '../components/CepInput'
 
 const VEHICLES = [
   { id: 'moto',   icon: '🏍️', label: 'Moto' },
@@ -35,15 +35,17 @@ function parseMasked(str) {
 async function resolveAddress(val) {
   const digits = val.replace(/\D/g, '')
   if (digits.length === 8) {
-    const resolved = await fetchCep(digits)
-    if (resolved) return resolved
+    const data = await fetchCepData(digits)
+    if (data) return buildAddressFromCepData(data)
   }
   return val
 }
 
-/* ── Address field with optional CEP lookup ── */
+/* ── Address field with CEP + number ── */
 function AddressField({ label, value, onChange, placeholder }) {
   const [cep, setCep] = useState('')
+  const [number, setNumber] = useState('')
+  const [cepData, setCepData] = useState(null)
   const [cepStatus, setCepStatus] = useState(null)
 
   const handleCepChange = async (e) => {
@@ -51,12 +53,24 @@ function AddressField({ label, value, onChange, placeholder }) {
     const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
     setCep(formatted)
     setCepStatus(null)
+    setCepData(null)
     if (raw.length === 8) {
       setCepStatus('loading')
-      const addr = await fetchCep(raw)
-      if (addr) { onChange(addr); setCepStatus('ok') }
-      else setCepStatus('err')
+      const data = await fetchCepData(raw)
+      if (data) {
+        setCepData(data)
+        setCepStatus('ok')
+        onChange(buildAddressFromCepData(data, number))
+      } else {
+        setCepStatus('err')
+      }
     }
+  }
+
+  const handleNumberChange = (e) => {
+    const num = e.target.value
+    setNumber(num)
+    if (cepData) onChange(buildAddressFromCepData(cepData, num))
   }
 
   return (
@@ -67,9 +81,17 @@ function AddressField({ label, value, onChange, placeholder }) {
           type="text"
           value={cep}
           onChange={handleCepChange}
-          placeholder="CEP (opcional)"
-          style={{ width: 120, flex: 'none' }}
+          placeholder="CEP"
+          style={{ width: 105, flex: 'none' }}
           maxLength={9}
+        />
+        <input
+          type="text"
+          value={number}
+          onChange={handleNumberChange}
+          placeholder="Nº"
+          style={{ width: 64, flex: 'none' }}
+          maxLength={10}
         />
         {cepStatus === 'loading' && (
           <span className="cep-status" style={{ color: 'var(--gray-400)' }}>Buscando...</span>
@@ -84,7 +106,7 @@ function AddressField({ label, value, onChange, placeholder }) {
       <input
         type="text"
         value={value}
-        onChange={e => { onChange(e.target.value); setCepStatus(null) }}
+        onChange={e => { onChange(e.target.value); setCepStatus(null); setCepData(null) }}
         placeholder={placeholder || 'Ou digite o endereço completo'}
       />
     </div>
@@ -94,6 +116,8 @@ function AddressField({ label, value, onChange, placeholder }) {
 /* ── Single waypoint row ── */
 function WaypointRow({ wp, index, onChange, onRemove }) {
   const [cep, setCep] = useState('')
+  const [number, setNumber] = useState('')
+  const [cepData, setCepData] = useState(null)
   const [cepStatus, setCepStatus] = useState(null)
   const hasPriority = wp.priority > 0
 
@@ -102,16 +126,29 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
     const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
     setCep(formatted)
     setCepStatus(null)
+    setCepData(null)
     if (raw.length === 8) {
       setCepStatus('loading')
-      const addr = await fetchCep(raw)
-      if (addr) { onChange({ ...wp, address: addr }); setCepStatus('ok') }
-      else setCepStatus('err')
+      const data = await fetchCepData(raw)
+      if (data) {
+        setCepData(data)
+        setCepStatus('ok')
+        onChange({ ...wp, address: buildAddressFromCepData(data, number) })
+      } else {
+        setCepStatus('err')
+      }
     }
+  }
+
+  const handleNumberChange = (e) => {
+    const num = e.target.value
+    setNumber(num)
+    if (cepData) onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
   }
 
   return (
     <div className={`waypoint-card${hasPriority ? ' waypoint-priority' : ''}`}>
+      {/* CEP + Nº + priority + remove */}
       <div className="waypoint-card-top">
         <span className="waypoint-num">{index + 1}</span>
         <input
@@ -119,8 +156,16 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
-          style={{ width: 90, flex: 'none', fontSize: '0.82rem', padding: '6px 9px' }}
+          style={{ width: 88, flex: 'none', fontSize: '0.82rem', padding: '6px 9px' }}
           maxLength={9}
+        />
+        <input
+          type="text"
+          value={number}
+          onChange={handleNumberChange}
+          placeholder="Nº"
+          style={{ width: 52, flex: 'none', fontSize: '0.82rem', padding: '6px 8px' }}
+          maxLength={10}
         />
         {cepStatus === 'loading' && (
           <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>...</span>
@@ -148,11 +193,12 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
         </div>
       </div>
 
+      {/* Full address */}
       <div className="waypoint-card-bottom">
         <input
           type="text"
           value={wp.address}
-          onChange={e => onChange({ ...wp, address: e.target.value })}
+          onChange={e => { onChange({ ...wp, address: e.target.value }); setCepData(null) }}
           placeholder="Endereço completo"
           style={{ flex: 1, minWidth: 0 }}
         />

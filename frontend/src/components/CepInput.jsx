@@ -1,22 +1,31 @@
 import React, { useState } from 'react'
 
-async function fetchCep(cep) {
+async function fetchCepData(cep) {
   const digits = cep.replace(/\D/g, '')
   if (digits.length !== 8) return null
   try {
     const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
     const data = await res.json()
     if (data.erro) return null
-    const parts = [
-      data.logradouro,
-      data.bairro,
-      `${data.localidade} - ${data.uf}`,
-      `CEP ${digits.slice(0, 5)}-${digits.slice(5)}`,
-    ].filter(Boolean)
-    return parts.join(', ')
+    return data
   } catch {
     return null
   }
+}
+
+function buildAddressFromCepData(data, number = '') {
+  const parts = [
+    data.logradouro,
+    number || null,
+    data.bairro,
+    data.localidade && data.uf ? `${data.localidade} - ${data.uf}` : (data.localidade || data.uf || null),
+  ].filter(Boolean)
+  return parts.join(', ')
+}
+
+async function fetchCep(cep) {
+  const data = await fetchCepData(cep)
+  return data ? buildAddressFromCepData(data) : null
 }
 
 function formatCep(value) {
@@ -71,4 +80,4 @@ export default function CepInput({ label, value, onChange, placeholder }) {
   )
 }
 
-export { fetchCep, formatCep }
+export { fetchCep, fetchCepData, buildAddressFromCepData, formatCep }

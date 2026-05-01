@@ -15,7 +15,7 @@ NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 _CEP_RE = re.compile(r"\d{5}-?\d{3}")
 
 
-def _lookup_cep(cep: str) -> Optional[str]:
+def _lookup_cep(cep: str, number: str = "") -> Optional[str]:
     """Query ViaCEP and return formatted address string, or None on failure."""
     digits = re.sub(r"\D", "", cep)
     if len(digits) != 8:
@@ -29,9 +29,9 @@ def _lookup_cep(cep: str) -> Optional[str]:
             return None
         parts = [
             data.get("logradouro", ""),
+            number,
             data.get("bairro", ""),
             f"{data.get('localidade', '')} - {data.get('uf', '')}".strip(" -"),
-            f"CEP {digits[:5]}-{digits[5:]}",
         ]
         return ", ".join(p for p in parts if p).strip()
     except Exception as exc:
@@ -54,9 +54,10 @@ def _xml_text(element, path: str) -> str:
 
 def _format_address(parent) -> str:
     cep = _xml_text(parent, "nfe:CEP")
-    # Prefer ViaCEP lookup for accurate, geocodable address
+    nro = _xml_text(parent, "nfe:nro")
+    # Prefer ViaCEP lookup for accurate, geocodable address; inject nro if present
     if cep:
-        via_addr = _lookup_cep(cep)
+        via_addr = _lookup_cep(cep, number=nro)
         if via_addr:
             return via_addr
 
