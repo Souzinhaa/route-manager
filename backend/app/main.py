@@ -90,7 +90,7 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_credentials=allow_credentials,
     allow_methods=["*"],
-    allow_headers=["*", "X-CSRF-Token"],
+    allow_headers=["*", "Authorization", "Content-Type", "X-CSRF-Token"],
     expose_headers=["X-CSRF-Token"],
 )
 logger.info("[startup] CORS origins: %s (credentials=%s)", cors_origins, allow_credentials)
