@@ -47,7 +47,8 @@ def _set_auth_cookies(response: Response, token: str, settings) -> None:
     """Set httpOnly access_token + readable csrf_token cookie."""
     csrf_token = secrets.token_hex(32)
     max_age = settings.access_token_expire_minutes * 60
-    shared = dict(max_age=max_age, samesite="lax", secure=settings.cookie_secure, path="/")
+    samesite = "none" if settings.cookie_secure else "lax"
+    shared = dict(max_age=max_age, samesite=samesite, secure=settings.cookie_secure, path="/")
     response.set_cookie(key="access_token", value=token, httponly=True, **shared)
     response.set_cookie(key="csrf_token", value=csrf_token, httponly=False, **shared)
 
