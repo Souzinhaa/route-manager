@@ -85,7 +85,7 @@ services:
       # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
       # double-belt: pydantic-settings reads env vars first, so this value
       # wins over the localhost default in app/config.py.
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@host.docker.internal:5432/route_manager
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: route_manager
