@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-DB_HOST="${DB_HOST:-app-db}"
+DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${POSTGRES_DB:-${DB_NAME:-route_manager}}"
 DB_USER="${POSTGRES_USER:-${DB_USER:-postgres}}"
