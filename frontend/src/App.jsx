@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
 import { authService, setToken, getToken } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
+import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -28,13 +29,11 @@ function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  // 401 interceptor in api.js fires this event when any request gets unauthorized
   useEffect(() => {
     window.addEventListener('auth:logout', handleLogout)
     return () => window.removeEventListener('auth:logout', handleLogout)
   }, [handleLogout])
 
-  // Close nav on route change (clicking a link)
   const closeNav = () => setNavOpen(false)
 
   if (loading) {
@@ -48,15 +47,14 @@ function App() {
           {/* ── Header ── */}
           <header className="header">
             <div className="header-inner">
-              {/* Logo */}
-              <Link to={user ? '/dashboard' : '/login'} className="header-logo" onClick={closeNav}>
+              <Link to={user ? '/dashboard' : '/'} className="header-logo" onClick={closeNav}>
                 <span className="header-logo-icon">🚚</span>
-                <span className="header-logo-text">Roteirizador</span>
+                <span className="header-logo-text">Roteiri<span>zador</span></span>
               </Link>
 
-              {user && (
+              {user ? (
                 <>
-                  {/* Desktop nav — inline in header-inner */}
+                  {/* Desktop nav — logged in */}
                   <nav className="header-nav-desktop">
                     <Link to="/dashboard">Painel</Link>
                     <Link to="/upload">Importar NFe</Link>
@@ -76,10 +74,16 @@ function App() {
                     {navOpen ? '✕' : '☰'}
                   </button>
                 </>
+              ) : (
+                /* Guest nav */
+                <nav className="header-nav-guest">
+                  <Link to="/login" className="btn-ghost">Entrar</Link>
+                  <Link to="/register" className="btn-cta">Criar Conta</Link>
+                </nav>
               )}
             </div>
 
-            {/* Mobile dropdown nav */}
+            {/* Mobile dropdown — logged in only */}
             {user && navOpen && (
               <nav className="header-nav-mobile">
                 <Link to="/dashboard" onClick={closeNav}>Painel</Link>
@@ -94,25 +98,23 @@ function App() {
 
           {/* ── Page content ── */}
           <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
-            <div className="container">
-              <Routes>
-                <Route path="/login" element={<Login setUser={setUser} />} />
-                <Route path="/register" element={<Register />} />
-                <Route
-                  path="/dashboard"
-                  element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/upload"
-                  element={user ? <Upload user={user} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/results"
-                  element={user ? <Results user={user} /> : <Navigate to="/login" />}
-                />
-                <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
-              </Routes>
-            </div>
+            <Routes>
+              <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
+              <Route path="/login" element={<Login setUser={setUser} />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/dashboard"
+                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/upload"
+                element={user ? <Upload user={user} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/results"
+                element={user ? <Results user={user} /> : <Navigate to="/login" />}
+              />
+            </Routes>
           </main>
         </div>
       </Router>

@@ -33,11 +33,10 @@ function Login({ setUser }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        {/* Logo mark */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 6 }}>🚚</div>
-          <div className="auth-title">Bem-vindo de volta</div>
-          <div className="auth-subtitle">Acesse sua conta para otimizar rotas</div>
+        <div className="auth-logo">
+          <div className="auth-logo-icon">🚚</div>
+          <h1 className="auth-title">Bem-vindo de volta</h1>
+          <p className="auth-subtitle">Acesse sua conta para otimizar rotas</p>
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -69,14 +68,15 @@ function Login({ setUser }) {
             type="submit"
             className="btn-primary"
             disabled={loading}
-            style={{ marginTop: 4 }}
+            style={{ marginTop: 6 }}
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 
         <div className="auth-footer">
-          Não tem conta? <Link to="/register">Criar conta</Link>
+          Não tem conta?{' '}
+          <Link to="/register">Criar conta gratuita</Link>
         </div>
       </div>
     </div>

@@ -14,7 +14,6 @@ function Register() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     try {
       await authService.register(email, password, fullName)
       navigate('/login')
@@ -22,8 +21,8 @@ function Register() {
       const detail = err.response?.data?.detail
       setError(
         Array.isArray(detail)
-          ? detail.map((e) => e.msg).join(', ')
-          : detail || 'Registration failed'
+          ? detail.map(e => e.msg).join(', ')
+          : detail || 'Falha no cadastro. Tente novamente.'
       )
     } finally {
       setLoading(false)
@@ -31,44 +30,65 @@ function Register() {
   }
 
   return (
-    <div className="main" style={{ maxWidth: '400px', margin: '100px auto' }}>
-      <h2>Register</h2>
-      {error && <div className="error">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Full Name</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-          />
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-icon">🚚</div>
+          <h1 className="auth-title">Criar conta gratuita</h1>
+          <p className="auth-subtitle">Comece a otimizar rotas em segundos</p>
         </div>
-        <div className="form-group">
-          <label>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Nome completo</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Seu nome"
+              required
+              autoComplete="name"
+            />
+          </div>
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="voce@empresa.com"
+              required
+              autoComplete="email"
+            />
+          </div>
+          <div className="form-group">
+            <label>Senha</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ marginTop: 6 }}
+          >
+            {loading ? 'Criando conta...' : 'Criar conta gratuita'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          Já tem conta?{' '}
+          <Link to="/login">Fazer login</Link>
         </div>
-        <div className="form-group">
-          <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-      <p style={{ marginTop: '20px', textAlign: 'center' }}>
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
+      </div>
     </div>
   )
 }

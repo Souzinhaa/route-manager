@@ -328,6 +328,7 @@ function Dashboard({ user }) {
 
   return (
     <div className="main">
+      <div className="container">
       <div className="page-title">Otimizar Rota</div>
       <div className="page-subtitle">
         Configure paradas, prioridades e veículo para calcular a melhor rota.
@@ -556,6 +557,7 @@ function Dashboard({ user }) {
             </ul>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

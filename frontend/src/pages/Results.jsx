@@ -40,6 +40,7 @@ function Results() {
   if (!route) {
     return (
       <div className="main">
+        <div className="container">
         <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🗺️</div>
           <h2 style={{ marginBottom: 8, color: 'var(--gray-700)', fontSize: '1.15rem' }}>
@@ -55,6 +56,7 @@ function Results() {
           >
             Ir para o Painel
           </button>
+        </div>
         </div>
       </div>
     )
@@ -90,6 +92,7 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
 
   return (
     <div className="main">
+      <div className="container">
       {/* Page header row */}
       <div className="results-header">
         <div style={{ minWidth: 0 }}>
@@ -254,6 +257,7 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
