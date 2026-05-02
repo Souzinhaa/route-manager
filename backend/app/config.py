@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     bcrypt_dummy_hash: str = "$2b$12$00000000000000000000000000000000000000000000000000000"
     cookie_secure: bool = False  # set True when running behind HTTPS
 
+    # Asaas
+    asaas_api_key: str = ""
+    asaas_webhook_token: str = ""
+    asaas_sandbox: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = False

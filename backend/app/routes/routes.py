@@ -2,6 +2,7 @@ import asyncio
 import logging
 import re
 import uuid
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.deps import get_current_user, get_db
 from app.limiter import limiter
-from app.models.db import Route, Upload, User
+from app.models.db import DailyUsage, Route, Upload, User
 from app.models.schemas import (
     OptimizeRouteRequest,
     OptimizeRouteResponse,
@@ -21,6 +22,7 @@ from app.models.schemas import (
     RouteResponse,
     UploadResponse,
 )
+from app.services.asaas import PLAN_LIMITS
 from app.services.geocoding import GeocodingService
 from app.services.nfe_parser import NFEParser
 from app.services.ortools_service import OrToolsService
@@ -28,7 +30,58 @@ from app.services.ortools_service import OrToolsService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
-CREDIT_COST_OPTIMIZE = 1.0
+
+def _check_plan_access(user: User, num_waypoints: int, db: Session) -> None:
+    plan_key = (user.plan or "tester").lower()
+    plan_status = (user.plan_status or "trial").lower()
+
+    if plan_status == "trial":
+        if user.trial_expires_at and datetime.utcnow() > user.trial_expires_at:
+            raise HTTPException(
+                status_code=402,
+                detail="Trial expirado. Faça uma assinatura para continuar.",
+            )
+    elif plan_status in ("pending", "cancelled"):
+        raise HTTPException(
+            status_code=402,
+            detail="Assinatura inativa. Atualize seu pagamento.",
+        )
+
+    limits = PLAN_LIMITS.get(plan_key, PLAN_LIMITS["tester"])
+
+    max_wp = limits["max_waypoints"]
+    if max_wp != -1 and num_waypoints > max_wp:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plano {plan_key!r} permite no máximo {max_wp} paradas por rota.",
+        )
+
+    max_routes = limits["routes_per_day"]
+    if max_routes != -1:
+        today = date.today()
+        usage = db.execute(
+            select(DailyUsage).where(
+                DailyUsage.user_id == user.id,
+                DailyUsage.date == today,
+            )
+        ).scalars().first()
+        used = usage.routes_used if usage else 0
+        if used >= max_routes:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Limite diário atingido ({max_routes} rota(s)/dia no plano {plan_key!r}).",
+            )
+
+
+def _increment_daily_usage(user_id: int, db: Session) -> None:
+    today = date.today()
+    usage = db.execute(
+        select(DailyUsage).where(DailyUsage.user_id == user_id, DailyUsage.date == today)
+    ).scalars().first()
+    if usage:
+        usage.routes_used += 1
+    else:
+        db.add(DailyUsage(user_id=user_id, date=today, routes_used=1))
 
 ALLOWED_EXTENSIONS = {".xml", ".pdf", ".png", ".jpg", ".jpeg"}
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]")
@@ -133,11 +186,7 @@ async def optimize_route(
             detail=f"Too many waypoints (max {settings.max_waypoints})",
         )
 
-    if current_user.credits < CREDIT_COST_OPTIMIZE:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient credits (need {CREDIT_COST_OPTIMIZE}, have {current_user.credits})",
-        )
+    _check_plan_access(current_user, len(req.waypoints), db)
 
     geo = GeocodingService(settings.google_maps_api_key)
 
@@ -192,10 +241,10 @@ async def optimize_route(
     duration_minutes = (distance / speed_kmh) * 60.0 if distance else 0.0
     cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
 
-    # Deduct credits and auto-save route to history
+    # Increment daily usage and auto-save route to history
     from datetime import datetime as _dt
     try:
-        current_user.credits -= CREDIT_COST_OPTIMIZE
+        _increment_daily_usage(current_user.id, db)
         db_route = Route(
             user_id=current_user.id,
             name=f"Rota {_dt.now().strftime('%d/%m %H:%M')}",

@@ -31,8 +31,8 @@ from app.routes import health  # noqa: E402
 
 HEAVY_ROUTES_OK = True
 try:
-    logger.info("[startup] importing heavy routes (auth, routes)...")
-    from app.routes import auth, routes as routes_module  # noqa: E402
+    logger.info("[startup] importing heavy routes (auth, routes, billing, webhook)...")
+    from app.routes import auth, routes as routes_module, billing, webhook  # noqa: E402
     logger.info("[startup] heavy routes loaded.")
 except Exception as exc:  # pragma: no cover
     logger.exception("[startup] heavy routes failed to import: %s", exc)
@@ -52,6 +52,14 @@ async def lifespan(app: FastAPI):
         logger.info("[startup] database tables ready.")
     except Exception as exc:
         logger.exception("[startup] ERROR creating tables: %s", exc)
+
+    logger.info("[startup] running migrations...")
+    try:
+        from app.migrations import run_migrations
+        run_migrations(_engine)
+    except Exception as exc:
+        logger.exception("[startup] ERROR running migrations: %s", exc)
+
     yield
     logger.info("[shutdown] bye.")
 
@@ -80,6 +88,8 @@ app.include_router(health.router)
 if HEAVY_ROUTES_OK:
     app.include_router(auth.router)
     app.include_router(routes_module.router)
+    app.include_router(billing.router)
+    app.include_router(webhook.router)
 else:
     logger.warning("[startup] heavy routes disabled — only /health is available")
 

@@ -1,10 +1,26 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, JSON, Enum
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Float, Boolean, JSON, Enum, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import enum
 
 Base = declarative_base()
+
+
+class PlanType(str, enum.Enum):
+    TESTER = "tester"
+    BASIC = "basic"
+    STARTER = "starter"
+    DELIVERY = "delivery"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+
+
+class PlanStatus(str, enum.Enum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
 
 
 class User(Base):
@@ -18,6 +34,11 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     credits = Column(Float, default=0.0)
+    asaas_customer_id = Column(String, nullable=True)
+    plan = Column(String, default=PlanType.TESTER)
+    subscription_id = Column(String, nullable=True)
+    plan_status = Column(String, default=PlanStatus.TRIAL)
+    trial_expires_at = Column(DateTime, nullable=True)
 
 
 class RouteOptimizationType(str, enum.Enum):
@@ -66,6 +87,16 @@ class PaymentTransaction(Base):
     transaction_id = Column(String, unique=True)
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DailyUsage(Base):
+    __tablename__ = "daily_usage"
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_user_date"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    date = Column(Date, nullable=False)
+    routes_used = Column(Integer, default=0)
 
 
 def get_db_url(settings):

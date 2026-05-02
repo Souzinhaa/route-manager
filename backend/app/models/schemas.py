@@ -5,6 +5,10 @@ from datetime import datetime
 
 OptimizationType = Literal["tsp", "vrp"]
 
+PlanTypeStr = Literal["tester", "basic", "starter", "delivery", "premium", "enterprise"]
+PlanStatusStr = Literal["trial", "active", "pending", "cancelled"]
+BillingTypeStr = Literal["CREDIT_CARD", "PIX", "BOLETO"]
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -23,10 +27,40 @@ class UserResponse(BaseModel):
     full_name: str
     is_active: bool
     credits: float
+    plan: str = "tester"
+    plan_status: str = "trial"
+    trial_expires_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PlanInfo(BaseModel):
+    key: str
+    name: str
+    routes_per_day: int
+    max_waypoints: int
+    price: float
+
+
+class SubscribeRequest(BaseModel):
+    plan: PlanTypeStr
+    billing_type: BillingTypeStr = "PIX"
+    cpf_cnpj: Optional[str] = None
+
+
+class SubscriptionResponse(BaseModel):
+    subscription_id: str
+    plan: str
+    plan_status: str
+    payment_url: Optional[str] = None
+
+
+class AsaasWebhookPayload(BaseModel):
+    event: str
+    payment: Optional[dict] = None
+    subscription: Optional[dict] = None
 
 
 class TokenResponse(BaseModel):

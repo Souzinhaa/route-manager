@@ -19,6 +19,8 @@ from app.models.schemas import (
     UserResponse,
 )
 
+TRIAL_DAYS = 3
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -67,7 +69,10 @@ async def register(request: Request, user: UserCreate, db: Session = Depends(get
         email=user.email,
         hashed_password=get_password_hash(user.password),
         full_name=user.full_name,
-        credits=100.0,
+        credits=0.0,
+        plan="tester",
+        plan_status="trial",
+        trial_expires_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS),
     )
     db.add(db_user)
     try:
