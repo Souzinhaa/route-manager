@@ -34,7 +34,13 @@ function Login({ setUser }) {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <div className="auth-logo-icon">🚚</div>
+          <div className="auth-logo-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="6" cy="6" r="2.5" fill="white" stroke="none"/>
+              <circle cx="18" cy="18" r="2.5" fill="white" stroke="none"/>
+              <path d="M6 6 Q 6 14, 12 12 T 18 18" />
+            </svg>
+          </div>
           <h1 className="auth-title">Bem-vindo de volta</h1>
           <p className="auth-subtitle">Acesse sua conta e otimize suas entregas</p>
         </div>

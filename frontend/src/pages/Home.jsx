@@ -1,81 +1,145 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 const FEATURES = [
   {
     icon: '🗺️',
-    title: 'Otimização Inteligente',
-    desc: 'Algoritmo TSP calcula a sequência de paradas que minimiza distância e tempo de entrega.',
+    title: 'Otimização TSP',
+    desc: 'Algoritmo Traveling Salesman calcula a sequência ideal de paradas em milissegundos.',
   },
   {
     icon: '📄',
-    title: 'Importação de NFe',
-    desc: 'Envie XMLs, PDFs ou imagens de Nota Fiscal. Endereços extraídos automaticamente via IA.',
+    title: 'NFe → Endereços',
+    desc: 'Envie XMLs, PDFs ou fotos. Extração automática via parser inteligente + ViaCEP.',
   },
   {
     icon: '⛽',
-    title: 'Custo Total da Rota',
-    desc: 'Calcule combustível e pedágios estimados antes de sair. Controle total sobre sua frota.',
+    title: 'Custo em Tempo Real',
+    desc: 'Combustível, pedágios por eixo e ROI estimado antes de sair da base.',
   },
   {
     icon: '🚛',
-    title: 'Multi-veículo',
-    desc: 'Suporte a moto, veículo leve e caminhão com cálculo de eixos para pedágio.',
+    title: 'Multi-frota',
+    desc: 'Moto, leve ou pesado. Cálculo de eixos automático para tarifa de pedágio correta.',
   },
   {
     icon: '📍',
-    title: 'CEP Inteligente',
-    desc: 'Digite o CEP e preenchemos o endereço completo via ViaCEP. Zero digitação desnecessária.',
+    title: 'CEP Auto-complete',
+    desc: 'Digite só o CEP. Endereço completo via ViaCEP em segundo plano. Zero atrito.',
   },
   {
-    icon: '⚡',
-    title: 'Prioridade de Entrega',
-    desc: 'Fixe a ordem de paradas críticas. O restante é otimizado automaticamente pelo sistema.',
+    icon: '🔢',
+    title: 'Prioridades Mistas',
+    desc: 'Fixe paradas críticas em ordem manual. Resto otimizado pelo algoritmo automaticamente.',
   },
 ]
 
 const STEPS = [
-  {
-    num: '1',
-    title: 'Crie sua conta',
-    desc: 'Cadastro rápido e gratuito. Sem cartão de crédito. Pronto para usar em menos de 1 minuto.',
-  },
-  {
-    num: '2',
-    title: 'Adicione seus destinos',
-    desc: 'Importe de NFe ou adicione endereços por CEP. Defina origem, chegada e prioridades de entrega.',
-  },
-  {
-    num: '3',
-    title: 'Otimize e entregue',
-    desc: 'Gere a rota ideal com um clique e abra diretamente no Google Maps. Simples assim.',
-  },
+  { num: '01', title: 'Crie sua conta', desc: 'Cadastro gratuito em segundos. Sem cartão, sem trial.' },
+  { num: '02', title: 'Importe destinos', desc: 'NFe ou CEP. Defina origem, chegada e prioridades.' },
+  { num: '03', title: 'Otimize e entregue', desc: 'Rota perfeita em menos de 1s. Abre direto no Maps.' },
 ]
 
 function Home() {
+  useEffect(() => {
+    const cards = document.querySelectorAll('.feature-card')
+    const onMove = (e) => {
+      cards.forEach(card => {
+        const rect = card.getBoundingClientRect()
+        const x = ((e.clientX - rect.left) / rect.width) * 100
+        const y = ((e.clientY - rect.top) / rect.height) * 100
+        card.style.setProperty('--mx', `${x}%`)
+        card.style.setProperty('--my', `${y}%`)
+      })
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+
   return (
     <>
       {/* ── Hero ── */}
       <section className="hero">
         <div className="hero-inner">
-          <div className="hero-eyebrow">
-            ⚡ SaaS de Logística &amp; Roteirização
+          <div>
+            <div className="hero-eyebrow">
+              <span className="dot"></span>
+              <span className="pill">NOVO</span>
+              <span>Algoritmo TSP + IA de extração</span>
+            </div>
+            <h1 className="hero-title">
+              Otimize suas rotas{' '}
+              <span className="accent">em segundos</span>
+            </h1>
+            <p className="hero-subtitle">
+              Reduza custos, aumente entregas e gerencie tudo em um só lugar.
+              Plataforma orientada a dados para frotas brasileiras de qualquer tamanho.
+            </p>
+            <div className="hero-actions">
+              <Link to="/register" className="btn-hero-primary">
+                Começar grátis
+                <span aria-hidden>→</span>
+              </Link>
+              <Link to="/login" className="btn-hero-secondary">
+                Acessar conta
+              </Link>
+            </div>
+            <div className="hero-trust">
+              <span className="hero-trust-item"><span className="check">✓</span> Sem cartão</span>
+              <span className="hero-trust-item"><span className="check">✓</span> Setup em 1 min</span>
+              <span className="hero-trust-item"><span className="check">✓</span> Cancele quando quiser</span>
+            </div>
           </div>
-          <h1 className="hero-title">
-            Otimize suas rotas{' '}
-            <span className="accent">em segundos</span>
-          </h1>
-          <p className="hero-subtitle">
-            Reduza custos, aumente entregas e gerencie tudo em um só lugar.
-            Plataforma inteligente para frotas de qualquer tamanho.
-          </p>
-          <div className="hero-actions">
-            <Link to="/register" className="btn-hero-primary">
-              Começar grátis →
-            </Link>
-            <Link to="/login" className="btn-hero-secondary">
-              Já tenho conta
-            </Link>
+
+          {/* Visual mockup */}
+          <div className="hero-visual">
+            <div className="mockup">
+              <div className="mockup-bar">
+                <span className="dot"></span>
+                <span className="dot"></span>
+                <span className="dot"></span>
+                <span className="url">roteirizador.app/rota/otimizada</span>
+              </div>
+              <div className="mockup-stops">
+                <div className="mockup-stop">
+                  <span className="num">1</span>
+                  <span className="addr">Av. Paulista, 1000 — Bela Vista</span>
+                  <span className="km">2.4 km</span>
+                </div>
+                <div className="mockup-stop">
+                  <span className="num">2</span>
+                  <span className="addr">Rua Augusta, 500 — Consolação</span>
+                  <span className="km">1.8 km</span>
+                </div>
+                <div className="mockup-stop">
+                  <span className="num">3</span>
+                  <span className="addr">Praça da Sé, 100 — Centro</span>
+                  <span className="km">3.1 km</span>
+                </div>
+                <div className="mockup-stop">
+                  <span className="num">4</span>
+                  <span className="addr">Mercado Municipal — Centro</span>
+                  <span className="km">0.9 km</span>
+                </div>
+              </div>
+              <div className="mockup-summary">
+                <div>
+                  <div className="label">Total otimizado</div>
+                  <div className="value">8.2 km · 24 min</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="label">Economia</div>
+                  <div className="value">−42%</div>
+                </div>
+              </div>
+            </div>
+            <div className="mockup-float">
+              <div className="icon">↓</div>
+              <div className="text">
+                <strong>R$ 18,40</strong>
+                economia em combustível
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -85,15 +149,15 @@ function Home() {
         <div className="stats-bar-inner">
           <div className="stat-item">
             <div className="stat-number"><span>+</span>40<span>%</span></div>
-            <div className="stat-desc">Redução de km rodados</div>
+            <div className="stat-desc">Redução média de km rodados</div>
           </div>
           <div className="stat-item">
             <div className="stat-number"><span>−</span>30<span>%</span></div>
             <div className="stat-desc">Custo com combustível</div>
           </div>
           <div className="stat-item">
-            <div className="stat-number">&lt;1<span>min</span></div>
-            <div className="stat-desc">Para gerar uma rota</div>
+            <div className="stat-number">&lt;1<span>s</span></div>
+            <div className="stat-desc">Para gerar uma rota completa</div>
           </div>
         </div>
       </div>
@@ -101,12 +165,13 @@ function Home() {
       {/* ── Features ── */}
       <section className="features-section">
         <div className="features-inner">
-          <div className="section-label">Funcionalidades</div>
-          <h2 className="section-title">Tudo para entregar mais rápido</h2>
-          <p className="section-subtitle">
-            Ferramentas orientadas a dados que se adaptam ao seu negócio,
-            do autônomo à pequena frota.
-          </p>
+          <div className="section-header">
+            <div className="section-label">Funcionalidades</div>
+            <h2 className="section-title">Tudo que sua operação precisa</h2>
+            <p className="section-subtitle">
+              Construído por quem entende logística. Sem features inúteis, sem curva de aprendizado.
+            </p>
+          </div>
           <div className="features-grid">
             {FEATURES.map((f, i) => (
               <div key={i} className="feature-card">
@@ -122,11 +187,13 @@ function Home() {
       {/* ── How it works ── */}
       <section className="how-section">
         <div className="how-inner">
-          <div className="section-label">Como funciona</div>
-          <h2 className="section-title">Em 3 passos simples</h2>
-          <p className="section-subtitle">
-            Sem configuração complexa. Interface clean, resultado imediato.
-          </p>
+          <div className="section-header">
+            <div className="section-label">Como funciona</div>
+            <h2 className="section-title">Da NFe ao Maps em 3 passos</h2>
+            <p className="section-subtitle">
+              Sem onboarding chato, sem configuração inicial. Crie e otimize.
+            </p>
+          </div>
           <div className="steps-grid">
             {STEPS.map((s, i) => (
               <div key={i} className="step">
@@ -142,16 +209,16 @@ function Home() {
       {/* ── Final CTA ── */}
       <section className="cta-section">
         <div className="cta-inner">
-          <h2 className="cta-title">Pronto para otimizar suas entregas?</h2>
+          <h2 className="cta-title">Comece a economizar combustível hoje</h2>
           <p className="cta-subtitle">
-            Crie sua conta gratuitamente e comece a economizar tempo e combustível hoje mesmo.
+            Crie sua conta gratuitamente e otimize sua primeira rota em menos de 60 segundos.
           </p>
           <div className="cta-actions">
             <Link to="/register" className="btn-cta-white">
-              Começar grátis
+              Criar conta grátis →
             </Link>
             <Link to="/login" className="btn-cta-outline">
-              Fazer login
+              Já sou cliente
             </Link>
           </div>
         </div>
@@ -159,7 +226,8 @@ function Home() {
 
       {/* ── Footer ── */}
       <footer className="footer-simple">
-        © {new Date().getFullYear()} Roteirizador · Logística inteligente para o Brasil
+        © {new Date().getFullYear()} <strong style={{ color: 'var(--text-2)' }}>Roteirizador</strong>{' · '}
+        Logística inteligente para o Brasil · <a href="#top">Voltar ao topo</a>
       </footer>
     </>
   )

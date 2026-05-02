@@ -33,9 +33,15 @@ function Register() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <div className="auth-logo-icon">🚚</div>
-          <h1 className="auth-title">Criar conta gratuita</h1>
-          <p className="auth-subtitle">Comece a otimizar rotas em segundos</p>
+          <div className="auth-logo-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="6" cy="6" r="2.5" fill="white" stroke="none"/>
+              <circle cx="18" cy="18" r="2.5" fill="white" stroke="none"/>
+              <path d="M6 6 Q 6 14, 12 12 T 18 18" />
+            </svg>
+          </div>
+          <h1 className="auth-title">Criar conta grátis</h1>
+          <p className="auth-subtitle">Otimize sua primeira rota em menos de 1 minuto</p>
         </div>
 
         {error && <div className="error">{error}</div>}
