@@ -36,7 +36,7 @@ function Login({ setUser }) {
         <div className="auth-logo">
           <div className="auth-logo-icon">🚚</div>
           <h1 className="auth-title">Bem-vindo de volta</h1>
-          <p className="auth-subtitle">Acesse sua conta para otimizar rotas</p>
+          <p className="auth-subtitle">Acesse sua conta e otimize suas entregas</p>
         </div>
 
         {error && <div className="error">{error}</div>}

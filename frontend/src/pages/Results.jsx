@@ -146,7 +146,7 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
                     {p > 0 && (
                       <span
                         className="priority-pill"
-                        style={{ background: 'var(--primary-light, #EFF6FF)', color: 'var(--primary)' }}
+                        style={{ background: 'rgba(37,99,235,.2)', color: 'var(--primary-light)' }}
                       >
                         #{p}
                       </span>
@@ -217,7 +217,7 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
                       </td>
                       <td style={{
                         textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
-                        color: 'var(--primary)', padding: '10px 0 4px', whiteSpace: 'nowrap',
+                        color: 'var(--primary-light)', padding: '10px 0 4px', whiteSpace: 'nowrap',
                       }}>
                         {fmt(grandTotal)}
                       </td>

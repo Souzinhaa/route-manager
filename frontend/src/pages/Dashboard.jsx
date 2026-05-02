@@ -205,7 +205,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
       </div>
 
       {hasPriority && (
-        <p style={{ fontSize: '0.7rem', color: 'var(--primary)', marginTop: 5 }}>
+        <p style={{ fontSize: '0.7rem', color: 'var(--primary-light)', marginTop: 5 }}>
           {wp.priority}ª parada na sequência de entrega
         </p>
       )}
@@ -546,7 +546,7 @@ function Dashboard({ user }) {
                         href={route.google_maps_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
+                        style={{ color: 'var(--primary-light)', textDecoration: 'none', fontWeight: 600 }}
                       >
                         Ver Maps →
                       </a>
