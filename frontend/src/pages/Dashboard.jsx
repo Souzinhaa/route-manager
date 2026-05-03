@@ -82,6 +82,7 @@ function AddressField({ label, value, onChange, placeholder }) {
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
+          inputMode="numeric"
           style={{ minWidth: 0, flex: '1.2', maxWidth: 110 }}
           maxLength={9}
         />
@@ -90,6 +91,7 @@ function AddressField({ label, value, onChange, placeholder }) {
           value={number}
           onChange={handleNumberChange}
           placeholder="Nº"
+          inputMode="numeric"
           style={{ minWidth: 0, flex: 0.8, maxWidth: 70 }}
           maxLength={10}
         />
@@ -156,6 +158,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
+          inputMode="numeric"
           style={{ minWidth: 0, flex: 1, maxWidth: 95, fontSize: '0.82rem', padding: '6px 9px' }}
           maxLength={9}
         />
@@ -164,6 +167,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           value={number}
           onChange={handleNumberChange}
           placeholder="Nº"
+          inputMode="numeric"
           style={{ minWidth: 0, flex: 0.7, maxWidth: 60, fontSize: '0.82rem', padding: '6px 8px' }}
           maxLength={10}
         />

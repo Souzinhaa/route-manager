@@ -64,6 +64,7 @@ export default function CepInput({ label, value, onChange, placeholder }) {
           value={cepValue}
           onChange={handleCepChange}
           placeholder="00000-000"
+          inputMode="numeric"
           style={{ maxWidth: 130 }}
           maxLength={9}
         />
