@@ -229,14 +229,26 @@ function Plans({ user }) {
             </div>
           </div>
           {!isLoggedIn && (
-            <Link to="/register" className="btn-cta" style={{ whiteSpace: 'nowrap' }}>
+            <Link to="/register" style={{
+              padding: '0.7rem 1.5rem', background: 'var(--primary)', color: 'white',
+              borderRadius: 8, fontSize: '0.9rem', fontWeight: 700, textDecoration: 'none',
+              whiteSpace: 'nowrap', transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => e.target.style.opacity = '0.9'}
+            onMouseLeave={e => e.target.style.opacity = '1'}>
               Começar grátis →
             </Link>
           )}
           {isLoggedIn && user?.plan === 'tester' && (
-            <span style={{ color: '#34d399', fontWeight: 600, fontSize: '0.9rem' }}>
-              ✓ Você está no trial
-            </span>
+            <Link to="/dashboard" style={{
+              padding: '0.7rem 1.5rem', background: 'rgba(52,211,153,0.15)', color: '#34d399',
+              border: '1px solid rgba(52,211,153,0.35)', borderRadius: 8, fontSize: '0.9rem',
+              fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.target.style.background = 'rgba(52,211,153,0.25)'; e.target.style.borderColor = 'rgba(52,211,153,0.5)' }}
+            onMouseLeave={e => { e.target.style.background = 'rgba(52,211,153,0.15)'; e.target.style.borderColor = 'rgba(52,211,153,0.35)' }}>
+              ✓ Ir para painel
+            </Link>
           )}
         </div>
 
