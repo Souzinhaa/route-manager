@@ -50,9 +50,17 @@ function SubscribeModal({ plan, user, onClose, onSuccess }) {
 
   const needsCpf = billingType !== 'CREDIT_CARD'
 
+  const formatCpfCnpj = (v) => {
+    const d = v.replace(/\D/g, '').slice(0, 14)
+    if (d.length <= 11)
+      return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    return d.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2')
+  }
+
   const handleSubmit = async () => {
-    if (needsCpf && !cpfCnpj.trim()) {
-      setError('CPF ou CNPJ obrigatório para PIX e Boleto.')
+    const digits = cpfCnpj.replace(/\D/g, '')
+    if (needsCpf && digits.length !== 11 && digits.length !== 14) {
+      setError('CPF (11 dígitos) ou CNPJ (14 dígitos) obrigatório para PIX e Boleto.')
       return
     }
     setLoading(true)
@@ -100,26 +108,6 @@ function SubscribeModal({ plan, user, onClose, onSuccess }) {
           R$ {plan.price}/mês · Cancele quando quiser
         </p>
 
-        {needsCpf && (
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              CPF ou CNPJ
-            </label>
-            <input
-              type="text"
-              value={cpfCnpj}
-              onChange={e => setCpfCnpj(e.target.value)}
-              placeholder="000.000.000-00 ou 00.000.000/0001-00"
-              maxLength={18}
-              style={{
-                width: '100%', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.05)',
-                border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-1)',
-                fontSize: '0.9rem', boxSizing: 'border-box',
-              }}
-            />
-          </div>
-        )}
-
         <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Forma de pagamento
@@ -144,6 +132,27 @@ function SubscribeModal({ plan, user, onClose, onSuccess }) {
             ))}
           </div>
         </div>
+
+        {needsCpf && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              CPF ou CNPJ
+            </label>
+            <input
+              type="text"
+              value={cpfCnpj}
+              onChange={e => setCpfCnpj(formatCpfCnpj(e.target.value))}
+              placeholder="000.000.000-00 ou 00.000.000/0001-00"
+              inputMode="numeric"
+              maxLength={18}
+              style={{
+                width: '100%', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-1)',
+                fontSize: '0.9rem', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
 
         {error && (
           <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '0.75rem', color: '#f87171', fontSize: '0.85rem', marginBottom: '1rem' }}>

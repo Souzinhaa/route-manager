@@ -32,10 +32,24 @@ class AsaasService:
             r.raise_for_status()
             return r.json()
 
+    @staticmethod
+    def _extract_error(exc: Exception) -> str:
+        try:
+            body = exc.response.json()  # type: ignore[attr-defined]
+            errors = body.get("errors") or []
+            if errors:
+                return errors[0].get("description") or str(exc)
+        except Exception:
+            pass
+        return str(exc)
+
     def _post(self, path: str, data: dict) -> dict:
         with httpx.Client(timeout=30) as client:
             r = client.post(f"{self.base_url}{path}", json=data, headers=self._headers)
-            r.raise_for_status()
+            try:
+                r.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ValueError(self._extract_error(exc)) from exc
             return r.json()
 
     def _delete(self, path: str) -> dict:

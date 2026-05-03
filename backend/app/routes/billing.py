@@ -54,7 +54,7 @@ async def subscribe(
             current_user.asaas_customer_id = customer["id"]
         except Exception as exc:
             logger.exception("Asaas create_customer failed for %s: %s", current_user.email, exc)
-            raise HTTPException(status_code=502, detail="Could not create payment customer")
+            raise HTTPException(status_code=502, detail=str(exc) or "Could not create payment customer")
 
     plan_info = PLAN_LIMITS[req.plan]
     next_due = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -70,7 +70,7 @@ async def subscribe(
         )
     except Exception as exc:
         logger.exception("Asaas create_subscription failed for %s: %s", current_user.email, exc)
-        raise HTTPException(status_code=502, detail="Could not create subscription")
+        raise HTTPException(status_code=502, detail=str(exc) or "Could not create subscription")
 
     current_user.subscription_id = subscription["id"]
     current_user.plan = req.plan

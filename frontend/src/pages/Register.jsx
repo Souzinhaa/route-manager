@@ -37,30 +37,26 @@ function Register({ setUser }) {
     return r === parseInt(digits[10])
   }
 
-  const validateEmail = (e) => {
-    const err = !e ? 'Email obrigatório' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? 'Email inválido' : ''
-    setFieldErrors(prev => ({ ...prev, email: err }))
+  const emailError = (e) => !e ? 'Email obrigatório' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? 'Email inválido' : ''
+  const passwordError = (p) => !p ? 'Senha obrigatória' : p.length < 8 ? 'Mínimo 8 caracteres' : ''
+  const cpfError = (c) => {
+    const d = c.replace(/\D/g, '')
+    return !d ? 'CPF/CNPJ obrigatório' : d.length === 11 && !validateCpf(d) ? 'CPF inválido' : d.length !== 11 && d.length !== 14 ? 'CPF: 11 dígitos ou CNPJ: 14 dígitos' : ''
   }
 
-  const validatePassword = (p) => {
-    const err = !p ? 'Senha obrigatória' : p.length < 8 ? 'Mínimo 8 caracteres' : ''
-    setFieldErrors(prev => ({ ...prev, password: err }))
-  }
-
-  const validateCpfCnpjField = (c) => {
-    const digits = c.replace(/\D/g, '')
-    const err = !digits ? 'CPF/CNPJ obrigatório' : digits.length === 11 && !validateCpf(digits) ? 'CPF inválido' : digits.length !== 11 && digits.length !== 14 && digits.length > 0 ? 'CPF: 11 dígitos ou CNPJ: 14 dígitos' : ''
-    setFieldErrors(prev => ({ ...prev, cpfCnpj: err }))
-  }
+  const validateEmail = (e) => setFieldErrors(prev => ({ ...prev, email: emailError(e) }))
+  const validatePassword = (p) => setFieldErrors(prev => ({ ...prev, password: passwordError(p) }))
+  const validateCpfCnpjField = (c) => setFieldErrors(prev => ({ ...prev, cpfCnpj: cpfError(c) }))
 
   const isFormValid = !fieldErrors.email && !fieldErrors.password && !fieldErrors.cpfCnpj && email && password && cpfCnpj && lgpdConsent
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    validateEmail(email)
-    validatePassword(password)
-    validateCpfCnpjField(cpfCnpj)
-    if (!isFormValid) return
+    const eErr = emailError(email)
+    const pErr = passwordError(password)
+    const cErr = cpfError(cpfCnpj)
+    setFieldErrors({ email: eErr, password: pErr, cpfCnpj: cErr })
+    if (eErr || pErr || cErr || !lgpdConsent) return
 
     setLoading(true)
     setError('')
