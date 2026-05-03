@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 function daysLeft(isoDate) {
   if (!isoDate) return null
   const diff = new Date(isoDate) - new Date()
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
 }
 
 function PlanBanner({ user }) {
