@@ -42,6 +42,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     lgpd_consent_at = Column(DateTime, nullable=True)
     lgpd_consent_ip = Column(String, nullable=True)
+    cpf_cnpj = Column(String, nullable=True, unique=True)
 
 
 class RouteOptimizationType(str, enum.Enum):

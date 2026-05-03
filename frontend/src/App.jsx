@@ -11,6 +11,8 @@ import Upload from './pages/Upload'
 import Results from './pages/Results'
 import Plans from './pages/Plans'
 import Admin from './pages/Admin'
+import TermosDeUso from './pages/TermosDeUso'
+import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
 
 const PLAN_LIMITS = {
   tester:     { routes_per_day: 1 },
@@ -153,6 +155,8 @@ function App() {
           {/* ── Page content ── */}
           <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
             <Routes>
+              <Route path="/termos-de-uso" element={<TermosDeUso />} />
+              <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
               <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
               <Route path="/login" element={<Login setUser={setUser} />} />
               <Route path="/register" element={<Register setUser={setUser} />} />

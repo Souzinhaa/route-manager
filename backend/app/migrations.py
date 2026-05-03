@@ -12,6 +12,8 @@ _USER_COLUMNS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS lgpd_consent_at TIMESTAMP",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS lgpd_consent_ip VARCHAR",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf_cnpj VARCHAR",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_cpf_cnpj ON users (cpf_cnpj) WHERE cpf_cnpj IS NOT NULL",
 ]
 
 

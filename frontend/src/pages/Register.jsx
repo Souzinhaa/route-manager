@@ -6,6 +6,7 @@ function Register({ setUser }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [cpfCnpj, setCpfCnpj] = useState('')
   const [lgpdConsent, setLgpdConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,8 +14,39 @@ function Register({ setUser }) {
   const [params] = useSearchParams()
   const targetPlan = params.get('plan')
 
+  const formatCpfCnpj = (v) => {
+    const d = v.replace(/\D/g, '').slice(0, 14)
+    if (d.length <= 11) {
+      return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    }
+    return d.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2')
+  }
+
+  const validateCpf = (digits) => {
+    if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false
+    let sum = 0
+    for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i)
+    let r = (sum * 10) % 11
+    if (r === 10 || r === 11) r = 0
+    if (r !== parseInt(digits[9])) return false
+    sum = 0
+    for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i)
+    r = (sum * 10) % 11
+    if (r === 10 || r === 11) r = 0
+    return r === parseInt(digits[10])
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const digits = cpfCnpj.replace(/\D/g, '')
+    if (digits.length !== 11 && digits.length !== 14) {
+      setError('CPF deve ter 11 dígitos ou CNPJ 14 dígitos.')
+      return
+    }
+    if (digits.length === 11 && !validateCpf(digits)) {
+      setError('CPF inválido.')
+      return
+    }
     if (!lgpdConsent) {
       setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar uma conta.')
       return
@@ -22,7 +54,7 @@ function Register({ setUser }) {
     setLoading(true)
     setError('')
     try {
-      await authService.register(email, password, fullName, true)
+      await authService.register(email, password, fullName, digits, true)
       // Auto-login após registrar para salvar token e user no App state
       const loginRes = await authService.login(email, password)
       setToken(loginRes.data.access_token)
@@ -111,6 +143,18 @@ function Register({ setUser }) {
               placeholder="••••••••"
               required
               autoComplete="new-password"
+            />
+          </div>
+          <div className="form-group">
+            <label>CPF ou CNPJ</label>
+            <input
+              type="text"
+              value={cpfCnpj}
+              onChange={e => setCpfCnpj(formatCpfCnpj(e.target.value))}
+              placeholder="000.000.000-00"
+              required
+              autoComplete="off"
+              inputMode="numeric"
             />
           </div>
           <div style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>

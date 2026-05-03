@@ -14,7 +14,16 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=120)
+    cpf_cnpj: str = Field(..., min_length=11, max_length=14, description="CPF (11 dígitos) ou CNPJ (14 dígitos)")
     lgpd_consent: bool = Field(..., description="Consentimento LGPD obrigatório")
+
+    @field_validator("cpf_cnpj")
+    @classmethod
+    def validate_cpf_cnpj(cls, v: str) -> str:
+        digits = "".join(c for c in v if c.isdigit())
+        if len(digits) not in (11, 14):
+            raise ValueError("CPF deve ter 11 dígitos ou CNPJ 14 dígitos")
+        return digits
 
 
 class UserLogin(BaseModel):
@@ -34,6 +43,7 @@ class UserResponse(BaseModel):
     is_admin: bool = False
     routes_used_today: int = 0
     created_at: datetime
+    cpf_cnpj: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -41,9 +41,9 @@ const PLANS = [
   },
 ]
 
-function SubscribeModal({ plan, onClose, onSuccess }) {
+function SubscribeModal({ plan, user, onClose, onSuccess }) {
   const [billingType, setBillingType] = useState('PIX')
-  const [cpfCnpj, setCpfCnpj] = useState('')
+  const [cpfCnpj, setCpfCnpj] = useState(user?.cpf_cnpj || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -442,6 +442,7 @@ function Plans({ user }) {
       {selectedPlan && (
         <SubscribeModal
           plan={selectedPlan}
+          user={localUser}
           onClose={() => setSelectedPlan(null)}
           onSuccess={handleSuccess}
         />

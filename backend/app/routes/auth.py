@@ -71,12 +71,20 @@ async def register(request: Request, user: UserCreate, db: Session = Depends(get
             detail="Email already registered",
         )
 
+    existing_cpf = db.execute(select(User).where(User.cpf_cnpj == user.cpf_cnpj)).scalars().first()
+    if existing_cpf:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CPF/CNPJ já cadastrado",
+        )
+
     client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
 
     db_user = User(
         email=user.email,
         hashed_password=get_password_hash(user.password),
         full_name=user.full_name,
+        cpf_cnpj=user.cpf_cnpj,
         credits=0.0,
         plan="tester",
         plan_status="trial",
