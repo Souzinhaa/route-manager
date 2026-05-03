@@ -82,7 +82,7 @@ function AddressField({ label, value, onChange, placeholder }) {
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
-          style={{ width: 105, flex: 'none' }}
+          style={{ minWidth: 0, flex: '1.2', maxWidth: 110 }}
           maxLength={9}
         />
         <input
@@ -90,7 +90,7 @@ function AddressField({ label, value, onChange, placeholder }) {
           value={number}
           onChange={handleNumberChange}
           placeholder="Nº"
-          style={{ width: 64, flex: 'none' }}
+          style={{ minWidth: 0, flex: 0.8, maxWidth: 70 }}
           maxLength={10}
         />
         {cepStatus === 'loading' && (
@@ -156,7 +156,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           value={cep}
           onChange={handleCepChange}
           placeholder="CEP"
-          style={{ width: 88, flex: 'none', fontSize: '0.82rem', padding: '6px 9px' }}
+          style={{ minWidth: 0, flex: 1, maxWidth: 95, fontSize: '0.82rem', padding: '6px 9px' }}
           maxLength={9}
         />
         <input
@@ -164,7 +164,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           value={number}
           onChange={handleNumberChange}
           placeholder="Nº"
-          style={{ width: 52, flex: 'none', fontSize: '0.82rem', padding: '6px 8px' }}
+          style={{ minWidth: 0, flex: 0.7, maxWidth: 60, fontSize: '0.82rem', padding: '6px 8px' }}
           maxLength={10}
         />
         {cepStatus === 'loading' && (
@@ -174,8 +174,8 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           <span style={{ fontSize: '0.72rem', color: 'var(--success)', whiteSpace: 'nowrap' }}>✓</span>
         )}
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>Ordem</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, minWidth: 0 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', whiteSpace: 'nowrap', display: 'none' }}>Ordem</span>
           <input
             type="number"
             min="0"
@@ -187,9 +187,9 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
             }}
             placeholder="—"
             title="Número na ordem de entrega (1 = primeiro). Em branco = otimização automática."
-            style={{ width: 54, padding: '6px 8px', fontSize: '0.82rem', textAlign: 'center', flexShrink: 0 }}
+            style={{ minWidth: 0, width: 45, padding: '6px 6px', fontSize: '0.82rem', textAlign: 'center', flexShrink: 0 }}
           />
-          <button type="button" className="btn-danger" onClick={onRemove} style={{ flexShrink: 0 }}>✕</button>
+          <button type="button" className="btn-danger" onClick={onRemove} style={{ flexShrink: 0, padding: '5px 9px' }}>✕</button>
         </div>
       </div>
 
@@ -232,24 +232,23 @@ function PlanWidget({ user, todayRoutes }) {
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      flexWrap: 'wrap', gap: '0.75rem',
-      background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '0.9rem 1.25rem', marginBottom: '1.5rem',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+      display: 'grid', gridTemplateColumns: '1fr', gap: '1rem',
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '0.9rem 1rem', marginBottom: '1.2rem',
+    }} className="plan-widget">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', width: '100%' }}>
         <div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Plano</div>
-          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Plano</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
             {limits.name}
             {user.plan_status === 'trial' && (
-              <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '0.15rem 0.45rem', borderRadius: 4, fontWeight: 700 }}>TRIAL</span>
+              <span style={{ marginLeft: 4, fontSize: '0.65rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '0.1rem 0.35rem', borderRadius: 3, fontWeight: 700 }}>TRIAL</span>
             )}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Rotas hoje</div>
-          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Rotas hoje</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
             {isUnlimited ? (
               <span style={{ color: '#34d399' }}>Ilimitado</span>
             ) : (
@@ -260,9 +259,9 @@ function PlanWidget({ user, todayRoutes }) {
             )}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Max paradas</div>
-          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Max paradas</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
             {limits.max_waypoints === -1 ? <span style={{ color: '#34d399' }}>Ilimitado</span> : limits.max_waypoints}
           </div>
         </div>
@@ -270,8 +269,8 @@ function PlanWidget({ user, todayRoutes }) {
       <Link
         to="/plans"
         style={{
-          fontSize: '0.82rem', color: 'var(--primary-light)', fontWeight: 600,
-          textDecoration: 'none', whiteSpace: 'nowrap',
+          fontSize: '0.78rem', color: 'var(--primary-light)', fontWeight: 600,
+          textDecoration: 'none', whiteSpace: 'nowrap', justifySelf: 'center',
         }}
       >
         {user.plan === 'tester' || user.plan_status !== 'active' ? 'Fazer upgrade →' : 'Ver planos →'}
