@@ -82,8 +82,9 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: 'var(--card)', border: '1px solid var(--border)',
+        background: '#0f1117', border: '1px solid rgba(255,255,255,0.12)',
         borderRadius: 16, padding: '2rem', maxWidth: 440, width: '100%',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
       }}>
         <h2 style={{ color: 'var(--text-1)', marginBottom: 4, fontSize: '1.3rem' }}>
           Assinar plano {plan.name}
