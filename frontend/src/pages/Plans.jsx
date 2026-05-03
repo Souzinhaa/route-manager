@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Fragment } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { billingService, getToken } from '../services/api'
 
@@ -45,6 +45,7 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
   const [billingType, setBillingType] = useState('PIX')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -56,7 +57,15 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
       }
       onSuccess()
     } catch (err) {
+      const status = err.response?.status
       const detail = err.response?.data?.detail
+
+      // Se 401, redireciona pro login
+      if (status === 401) {
+        navigate('/login')
+        return
+      }
+
       setError(detail || 'Erro ao processar assinatura. Tente novamente.')
     } finally {
       setLoading(false)
@@ -140,13 +149,18 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
 function Plans({ user }) {
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [subscribed, setSubscribed] = useState(false)
+  const [localUser, setLocalUser] = useState(user)
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const isWelcome = params.get('welcome') === '1'
-  const isLoggedIn = !!getToken()
+  const isLoggedIn = !!getToken() || !!user
+
+  useEffect(() => {
+    setLocalUser(user)
+  }, [user])
 
   const handleSelectPlan = (plan) => {
-    if (!isLoggedIn) {
+    if (!isLoggedIn || !user) {
       navigate(`/register?plan=${plan.key}`)
       return
     }
@@ -239,7 +253,7 @@ function Plans({ user }) {
               Começar grátis →
             </Link>
           )}
-          {isLoggedIn && user?.plan === 'tester' && (
+          {isLoggedIn && localUser?.plan === 'tester' && (
             <Link to="/dashboard" style={{
               padding: '0.7rem 1.5rem', background: 'rgba(52,211,153,0.15)', color: '#34d399',
               border: '1px solid rgba(52,211,153,0.35)', borderRadius: 8, fontSize: '0.9rem',
@@ -322,7 +336,7 @@ function Plans({ user }) {
               </div>
 
               <div style={{ marginTop: 'auto' }}>
-                {isLoggedIn && user?.plan === plan.key && user?.plan_status === 'active' ? (
+                {isLoggedIn && localUser?.plan === plan.key && localUser?.plan_status === 'active' ? (
                   <div style={{ textAlign: 'center', color: '#34d399', fontWeight: 600, padding: '0.7rem', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 8, fontSize: '0.9rem' }}>
                     ✓ Plano atual
                   </div>
