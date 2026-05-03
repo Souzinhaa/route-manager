@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
-import { authService } from '../services/api'
+import { authService, setToken } from '../services/api'
 
-function Register() {
+function Register({ setUser }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -18,7 +18,10 @@ function Register() {
     setError('')
     try {
       await authService.register(email, password, fullName)
-      // redirect to plans with welcome flag so user can subscribe
+      // Auto-login após registrar para salvar token e user no App state
+      const loginRes = await authService.login(email, password)
+      setToken(loginRes.data.access_token)
+      setUser(loginRes.data.user)
       navigate('/plans?welcome=1')
     } catch (err) {
       const detail = err.response?.data?.detail

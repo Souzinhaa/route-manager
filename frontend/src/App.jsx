@@ -155,7 +155,7 @@ function App() {
             <Routes>
               <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
               <Route path="/login" element={<Login setUser={setUser} />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/register" element={<Register setUser={setUser} />} />
               <Route path="/plans" element={<Plans user={user} />} />
               <Route
                 path="/admin"
