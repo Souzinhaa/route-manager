@@ -83,7 +83,7 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
     >
       <div style={{
         background: '#0f1117', border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: 16, padding: '2rem', maxWidth: 440, width: '100%',
+        borderRadius: 16, padding: 'clamp(1.25rem, 5vw, 2rem)', maxWidth: 440, width: '100%',
         boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
       }}>
         <h2 style={{ color: 'var(--text-1)', marginBottom: 4, fontSize: '1.3rem' }}>
@@ -97,17 +97,18 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
           <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Forma de pagamento
           </label>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {['PIX', 'CREDIT_CARD', 'BOLETO'].map(bt => (
               <button
                 key={bt}
                 type="button"
                 onClick={() => setBillingType(bt)}
                 style={{
-                  flex: 1, padding: '0.65rem', border: `1.5px solid ${billingType === bt ? 'var(--primary)' : 'var(--border)'}`,
+                  flex: '1 1 70px', minWidth: 0, padding: '0.6rem 0.4rem',
+                  border: `1.5px solid ${billingType === bt ? 'var(--primary)' : 'var(--border)'}`,
                   borderRadius: 8, background: billingType === bt ? 'rgba(37,99,235,0.12)' : 'transparent',
                   color: billingType === bt ? 'var(--primary-light)' : 'var(--text-2)',
-                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                  cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
                   transition: 'all 0.15s',
                 }}
               >
@@ -180,7 +181,7 @@ function Plans({ user }) {
         <div style={{
           background: 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(16,185,129,0.1))',
           borderBottom: '1px solid rgba(37,99,235,0.2)',
-          padding: '1rem 2rem', textAlign: 'center',
+          padding: '0.85rem 1rem', textAlign: 'center',
         }}>
           <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>
             🎉 Conta criada! Você tem <strong style={{ color: '#34d399' }}>3 dias grátis</strong> para testar.
@@ -192,7 +193,7 @@ function Plans({ user }) {
       {subscribed && (
         <div style={{
           background: 'rgba(16,185,129,0.1)', borderBottom: '1px solid rgba(16,185,129,0.25)',
-          padding: '1rem 2rem', textAlign: 'center',
+          padding: '0.85rem 1rem', textAlign: 'center',
         }}>
           <span style={{ color: '#34d399', fontWeight: 600 }}>
             ✅ Assinatura iniciada! Complete o pagamento na janela que abriu.
@@ -202,9 +203,9 @@ function Plans({ user }) {
         </div>
       )}
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '3rem 1.5rem 4rem' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 5vw, 4rem)' }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(2rem, 5vw, 3.5rem)' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)',
@@ -231,9 +232,9 @@ function Plans({ user }) {
         <div style={{
           background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(16,185,129,0.06))',
           border: '1px solid rgba(37,99,235,0.25)', borderRadius: 16,
-          padding: '1.5rem 2rem', marginBottom: '2rem',
+          padding: 'clamp(1rem, 3vw, 1.5rem) clamp(1rem, 3vw, 2rem)', marginBottom: '1.5rem',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: '1rem',
+          flexWrap: 'wrap', gap: '0.75rem',
         }}>
           <div>
             <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>
@@ -270,8 +271,8 @@ function Plans({ user }) {
         {/* Plan cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-          gap: '1.25rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
+          gap: 'clamp(0.75rem, 2vw, 1.25rem)',
         }}>
           {PLANS.map(plan => (
             <div
@@ -279,7 +280,7 @@ function Plans({ user }) {
               style={{
                 background: plan.popular ? 'linear-gradient(160deg, rgba(37,99,235,0.12), rgba(37,99,235,0.04))' : 'var(--card)',
                 border: `1.5px solid ${plan.popular ? 'rgba(37,99,235,0.5)' : 'var(--border)'}`,
-                borderRadius: 16, padding: '1.75rem 1.5rem',
+                borderRadius: 16, padding: 'clamp(1.25rem, 3vw, 1.75rem) clamp(1rem, 3vw, 1.5rem)',
                 display: 'flex', flexDirection: 'column',
                 position: 'relative',
                 transition: 'transform 0.15s, box-shadow 0.15s',
@@ -365,9 +366,9 @@ function Plans({ user }) {
         {/* Enterprise */}
         <div style={{
           background: 'var(--card)', border: '1px solid var(--border)',
-          borderRadius: 16, padding: '1.75rem 2rem', marginTop: '1.25rem',
+          borderRadius: 16, padding: 'clamp(1rem, 3vw, 1.75rem) clamp(1rem, 3vw, 2rem)', marginTop: '1rem',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: '1rem',
+          flexWrap: 'wrap', gap: '0.75rem',
         }}>
           <div>
             <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '1.05rem', marginBottom: 4 }}>
@@ -390,8 +391,8 @@ function Plans({ user }) {
         </div>
 
         {/* FAQ */}
-        <div style={{ marginTop: '3.5rem' }}>
-          <h2 style={{ textAlign: 'center', color: 'var(--text-1)', fontSize: '1.5rem', fontWeight: 700, marginBottom: '2rem' }}>
+        <div style={{ marginTop: 'clamp(2rem, 5vw, 3.5rem)' }}>
+          <h2 style={{ textAlign: 'center', color: 'var(--text-1)', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', fontWeight: 700, marginBottom: 'clamp(1.25rem, 3vw, 2rem)' }}>
             Perguntas frequentes
           </h2>
           <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -402,7 +403,7 @@ function Plans({ user }) {
               { q: 'Quais formas de pagamento aceitas?', a: 'PIX, cartão de crédito e boleto bancário, processados pelo Asaas.' },
               { q: 'Posso trocar de plano?', a: 'Sim. Faça upgrade ou downgrade a qualquer momento. A mudança é imediata.' },
             ].map(({ q, a }, i) => (
-              <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem 1.5rem' }}>
+              <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 'clamp(1rem, 3vw, 1.25rem) clamp(1rem, 3vw, 1.5rem)' }}>
                 <div style={{ color: 'var(--text-1)', fontWeight: 600, marginBottom: 6 }}>{q}</div>
                 <div style={{ color: 'var(--text-2)', fontSize: '0.9rem', lineHeight: 1.6 }}>{a}</div>
               </div>
