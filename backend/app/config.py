@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     bcrypt_dummy_hash: str = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
     cookie_secure: bool = False  # set True when running behind HTTPS
 
+    # Admin bootstrap
+    admin_email: str = ""
+
     # Asaas
     asaas_api_key: str = ""
     asaas_webhook_token: str = ""

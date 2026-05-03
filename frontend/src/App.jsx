@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { authService } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlanBanner from './components/PlanBanner'
+import PaymentWallModal, { getBlockReason } from './components/PaymentWallModal'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -13,6 +14,16 @@ import Plans from './pages/Plans'
 import Admin from './pages/Admin'
 import TermosDeUso from './pages/TermosDeUso'
 import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
+
+const PAYMENT_WALL_EXEMPT = new Set(['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade'])
+
+function PaymentWallGuard({ user, onDowngrade }) {
+  const location = useLocation()
+  if (!user || user.is_admin) return null
+  if (PAYMENT_WALL_EXEMPT.has(location.pathname)) return null
+  if (!getBlockReason(user)) return null
+  return <PaymentWallModal user={user} onDowngrade={onDowngrade} />
+}
 
 const PLAN_LIMITS = {
   tester:     { routes_per_day: 1 },
@@ -77,9 +88,16 @@ function App() {
     return <div className="loading"><div className="spinner"></div></div>
   }
 
+  const handleDowngrade = useCallback(() => {
+    authService.getCurrentUser()
+      .then(res => setUser(res.data))
+      .catch(() => {})
+  }, [])
+
   return (
     <ErrorBoundary>
       <Router>
+        <PaymentWallGuard user={user} onDowngrade={handleDowngrade} />
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           {/* ── Header ── */}
           <header className="header">

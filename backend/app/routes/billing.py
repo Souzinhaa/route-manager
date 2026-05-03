@@ -130,6 +130,22 @@ async def get_subscription(
     )
 
 
+@router.post("/downgrade", status_code=status.HTTP_204_NO_CONTENT)
+async def downgrade_to_tester(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.plan = "tester"
+    current_user.plan_status = "active"
+    current_user.subscription_id = None
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("DB commit failed on downgrade for %s: %s", current_user.email, exc)
+        raise HTTPException(status_code=500, detail="Could not downgrade plan")
+
+
 @router.delete("/subscription", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_subscription(
     current_user: User = Depends(get_current_user),

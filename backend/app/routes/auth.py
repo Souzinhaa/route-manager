@@ -58,7 +58,7 @@ def _set_auth_cookies(response: Response, token: str, settings) -> None:
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
-async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
+async def register(request: Request, user: UserCreate, db: Session = Depends(get_db), settings=Depends(get_settings)):
     if not user.lgpd_consent:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -81,6 +81,8 @@ async def register(request: Request, user: UserCreate, db: Session = Depends(get
 
     client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
 
+    is_admin_bootstrap = bool(settings.admin_email and user.email == settings.admin_email)
+
     db_user = User(
         email=user.email,
         hashed_password=get_password_hash(user.password),
@@ -92,6 +94,7 @@ async def register(request: Request, user: UserCreate, db: Session = Depends(get
         trial_expires_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS),
         lgpd_consent_at=datetime.utcnow(),
         lgpd_consent_ip=client_ip,
+        is_admin=is_admin_bootstrap,
     )
     db.add(db_user)
     try:
@@ -132,6 +135,14 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    if settings.admin_email and db_user.email == settings.admin_email and not db_user.is_admin:
+        db_user.is_admin = True
+        try:
+            db.commit()
+            db.refresh(db_user)
+        except Exception:
+            db.rollback()
 
     access_token = create_access_token({"sub": user.email}, settings=settings)
     _set_auth_cookies(response, access_token, settings)

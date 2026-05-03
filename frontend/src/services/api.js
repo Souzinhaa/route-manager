@@ -80,6 +80,7 @@ export const adminService = {
   patchUser: (id, data) => api.patch(`/admin/users/${id}`, data),
   getUserRoutes: (id) => api.get(`/admin/users/${id}/routes`),
   deleteRoute: (userId, routeId) => api.delete(`/admin/users/${userId}/routes/${routeId}`),
+  changePassword: (newPassword) => api.post('/admin/change-password', { new_password: newPassword }),
 }
 
 export const billingService = {
@@ -88,6 +89,7 @@ export const billingService = {
     api.post('/billing/subscribe', { plan, billing_type: billingType, cpf_cnpj: cpfCnpj }),
   getSubscription: () => api.get('/billing/subscription'),
   cancelSubscription: () => api.delete('/billing/subscription'),
+  downgrade: () => api.post('/billing/downgrade'),
 }
 
 export default api

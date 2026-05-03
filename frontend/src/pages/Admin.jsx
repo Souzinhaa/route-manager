@@ -1,6 +1,54 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { adminService } from '../services/api'
 
+function ChangePasswordSection() {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (newPassword.length < 8) { setError('Mínimo 8 caracteres'); return }
+    if (newPassword !== confirm) { setError('Senhas não coincidem'); return }
+    setLoading(true); setError(''); setSuccess(false)
+    try {
+      await adminService.changePassword(newPassword)
+      setSuccess(true)
+      setNewPassword('')
+      setConfirm('')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao alterar senha')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem', marginTop: '2rem', maxWidth: 420 }}>
+      <h3 style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '1rem', marginBottom: '1rem' }}>Alterar Senha do Admin</h3>
+      {success && <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: '0.65rem', color: '#34d399', fontSize: '0.85rem', marginBottom: '1rem' }}>Senha alterada com sucesso.</div>}
+      {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '0.65rem', color: '#f87171', fontSize: '0.85rem', marginBottom: '1rem' }}>{error}</div>}
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <input
+          type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+          placeholder="Nova senha (mín. 8 caracteres)" minLength={8} required
+          style={{ padding: '0.65rem 0.75rem', fontSize: '0.9rem' }}
+        />
+        <input
+          type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+          placeholder="Confirmar nova senha" required
+          style={{ padding: '0.65rem 0.75rem', fontSize: '0.9rem' }}
+        />
+        <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%' }}>
+          {loading ? 'Salvando...' : 'Alterar senha'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 const PLANS = ['tester', 'basic', 'starter', 'delivery', 'premium', 'enterprise']
 const STATUSES = ['trial', 'active', 'pending', 'cancelled']
 
@@ -161,13 +209,20 @@ function Admin() {
 
       {/* Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-          <StatCard label="Usuários" value={stats.total_users} />
-          <StatCard label="Assinaturas ativas" value={stats.active_subscriptions} color="#60a5fa" />
-          <StatCard label="Em trial" value={stats.trial_users} color="#34d399" />
-          <StatCard label="Total rotas" value={stats.total_routes} />
-          <StatCard label="Rotas hoje" value={stats.routes_today} color="#f59e0b" />
-        </div>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            <StatCard label="Usuários" value={stats.total_users} />
+            <StatCard label="Assinaturas ativas" value={stats.active_subscriptions} color="#60a5fa" />
+            <StatCard label="Em trial" value={stats.trial_users} color="#34d399" />
+            <StatCard label="Pagam. pendentes" value={stats.pending_payments} color="#fbbf24" />
+            <StatCard label="Cancelados" value={stats.cancelled_subscriptions} color="#f87171" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+            <StatCard label="MRR (R$)" value={`R$ ${(stats.mrr || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} color="#a78bfa" />
+            <StatCard label="Total rotas" value={stats.total_routes} />
+            <StatCard label="Rotas hoje" value={stats.routes_today} color="#f59e0b" />
+          </div>
+        </>
       )}
 
       {stats?.plan_distribution && (
@@ -298,6 +353,8 @@ function Admin() {
           onSaved={load}
         />
       )}
+
+      <ChangePasswordSection />
     </div>
   )
 }
