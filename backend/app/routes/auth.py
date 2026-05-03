@@ -53,6 +53,7 @@ def _set_auth_cookies(response: Response, token: str, settings) -> None:
     shared = dict(max_age=max_age, samesite=samesite, secure=settings.cookie_secure, path="/")
     response.set_cookie(key="access_token", value=token, httponly=True, **shared)
     response.set_cookie(key="csrf_token", value=csrf_token, httponly=False, **shared)
+    logger.info("[auth] cookies set: secure=%s samesite=%s max_age=%s", settings.cookie_secure, samesite, max_age)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

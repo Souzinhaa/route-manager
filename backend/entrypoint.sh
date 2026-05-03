@@ -22,4 +22,9 @@ else
   echo "[entrypoint] DATABASE_URL already set, skipping pg_isready (cloud DB)"
 fi
 
-exec python -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers "${WEB_WORKERS:-1}"
+exec python -m uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port "${PORT:-8000}" \
+  --workers "${WEB_WORKERS:-1}" \
+  --proxy-headers \
+  --forwarded-allow-ips='*'
