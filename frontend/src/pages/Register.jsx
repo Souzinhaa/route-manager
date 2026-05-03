@@ -10,6 +10,7 @@ function Register({ setUser }) {
   const [lgpdConsent, setLgpdConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '', cpfCnpj: '' })
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const targetPlan = params.get('plan')
@@ -36,23 +37,34 @@ function Register({ setUser }) {
     return r === parseInt(digits[10])
   }
 
+  const validateEmail = (e) => {
+    const err = !e ? 'Email obrigatório' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? 'Email inválido' : ''
+    setFieldErrors(prev => ({ ...prev, email: err }))
+  }
+
+  const validatePassword = (p) => {
+    const err = !p ? 'Senha obrigatória' : p.length < 8 ? 'Mínimo 8 caracteres' : ''
+    setFieldErrors(prev => ({ ...prev, password: err }))
+  }
+
+  const validateCpfCnpjField = (c) => {
+    const digits = c.replace(/\D/g, '')
+    const err = !digits ? 'CPF/CNPJ obrigatório' : digits.length === 11 && !validateCpf(digits) ? 'CPF inválido' : digits.length !== 11 && digits.length !== 14 && digits.length > 0 ? 'CPF: 11 dígitos ou CNPJ: 14 dígitos' : ''
+    setFieldErrors(prev => ({ ...prev, cpfCnpj: err }))
+  }
+
+  const isFormValid = !fieldErrors.email && !fieldErrors.password && !fieldErrors.cpfCnpj && email && password && cpfCnpj && lgpdConsent
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const digits = cpfCnpj.replace(/\D/g, '')
-    if (digits.length !== 11 && digits.length !== 14) {
-      setError('CPF deve ter 11 dígitos ou CNPJ 14 dígitos.')
-      return
-    }
-    if (digits.length === 11 && !validateCpf(digits)) {
-      setError('CPF inválido.')
-      return
-    }
-    if (!lgpdConsent) {
-      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar uma conta.')
-      return
-    }
+    validateEmail(email)
+    validatePassword(password)
+    validateCpfCnpjField(cpfCnpj)
+    if (!isFormValid) return
+
     setLoading(true)
     setError('')
+    const digits = cpfCnpj.replace(/\D/g, '')
     try {
       await authService.register(email, password, fullName, digits, true)
       // Auto-login após registrar para salvar token e user no App state
@@ -128,34 +140,43 @@ function Register({ setUser }) {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={e => { setEmail(e.target.value); validateEmail(e.target.value) }}
+              onBlur={() => validateEmail(email)}
               placeholder="voce@empresa.com"
               required
               autoComplete="email"
+              style={{ borderColor: fieldErrors.email ? '#f87171' : 'var(--border)' }}
             />
+            {fieldErrors.email && <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: 4 }}>{fieldErrors.email}</div>}
           </div>
           <div className="form-group">
             <label>Senha</label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => { setPassword(e.target.value); validatePassword(e.target.value) }}
+              onBlur={() => validatePassword(password)}
               placeholder="••••••••"
               required
               autoComplete="new-password"
+              style={{ borderColor: fieldErrors.password ? '#f87171' : 'var(--border)' }}
             />
+            {fieldErrors.password && <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: 4 }}>{fieldErrors.password}</div>}
           </div>
           <div className="form-group">
             <label>CPF ou CNPJ</label>
             <input
               type="text"
               value={cpfCnpj}
-              onChange={e => setCpfCnpj(formatCpfCnpj(e.target.value))}
+              onChange={e => { const formatted = formatCpfCnpj(e.target.value); setCpfCnpj(formatted); validateCpfCnpjField(formatted) }}
+              onBlur={() => validateCpfCnpjField(cpfCnpj)}
               placeholder="000.000.000-00"
               required
               autoComplete="off"
               inputMode="numeric"
+              style={{ borderColor: fieldErrors.cpfCnpj ? '#f87171' : 'var(--border)' }}
             />
+            {fieldErrors.cpfCnpj && <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: 4 }}>{fieldErrors.cpfCnpj}</div>}
           </div>
           <div style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
@@ -182,7 +203,7 @@ function Register({ setUser }) {
           <button
             type="submit"
             className="btn-primary"
-            disabled={loading || !lgpdConsent}
+            disabled={loading || !isFormValid}
             style={{ marginTop: 6 }}
           >
             {loading ? 'Criando conta...' : 'Criar conta gratuita'}
