@@ -220,7 +220,7 @@ function Plans({ user }) {
           padding: '0.85rem 1rem', textAlign: 'center',
         }}>
           <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>
-            🎉 Conta criada! Você tem <strong style={{ color: '#34d399' }}>3 dias grátis</strong> para testar.
+            Conta criada! Você tem <strong style={{ color: '#34d399' }}>3 dias grátis</strong> para testar.
             Assine agora e não perca o acesso.
           </span>
         </div>
@@ -232,7 +232,7 @@ function Plans({ user }) {
           padding: '0.85rem 1rem', textAlign: 'center',
         }}>
           <span style={{ color: '#34d399', fontWeight: 600 }}>
-            ✅ Assinatura iniciada! Complete o pagamento na janela que abriu.
+            Assinatura iniciada! Complete o pagamento na janela que abriu.
             Após confirmação, seu plano será ativado.{' '}
             <Link to="/dashboard" style={{ color: '#34d399', textDecoration: 'underline' }}>Ir para o painel →</Link>
           </span>
@@ -274,7 +274,7 @@ function Plans({ user }) {
         }}>
           <div>
             <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>
-              🆓 Trial Gratuito — 3 dias
+              Trial Gratuito — 3 dias
             </div>
             <div style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>
               1 rota/dia · 50 paradas · Acesso completo à plataforma
@@ -320,6 +320,7 @@ function Plans({ user }) {
                 display: 'flex', flexDirection: 'column',
                 position: 'relative',
                 transition: 'transform 0.15s, box-shadow 0.15s',
+                cursor: 'pointer',
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.2)' }}
               onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
