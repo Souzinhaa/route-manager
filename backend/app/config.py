@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional, List
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 20
     max_waypoints: int = 198
     avg_speed_kmh: float = 50.0
-    bcrypt_dummy_hash: str = "$2b$12$00000000000000000000000000000000000000000000000000000"
+    bcrypt_dummy_hash: str = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
     cookie_secure: bool = False  # set True when running behind HTTPS
 
     # Asaas
@@ -63,3 +64,16 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings():
     return Settings()
+
+
+def validate_production_settings(settings) -> None:
+    """Fail fast if unsafe defaults are detected in production."""
+    if os.getenv("ENV", "").lower() != "production":
+        return
+    errors = []
+    if settings.secret_key == "change-me-in-production":
+        errors.append("SECRET_KEY must not be default in production")
+    if settings.cors_origins.strip() == "*":
+        errors.append("CORS_ORIGINS must not be '*' in production")
+    if errors:
+        raise RuntimeError(f"Unsafe production config: {'; '.join(errors)}")

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
-import { authService, setToken, getToken } from './services/api'
+import { authService } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlanBanner from './components/PlanBanner'
 import Home from './pages/Home'
@@ -55,16 +55,14 @@ function App() {
 
   const handleLogout = useCallback(async () => {
     try { await authService.logout() } catch (_) { /* ignore */ }
-    setToken(null)
     setUser(null)
     setNavOpen(false)
   }, [])
 
   useEffect(() => {
-    if (!getToken()) { setLoading(false); return }
     authService.getCurrentUser()
       .then(res => setUser(res.data))
-      .catch(() => setToken(null))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 

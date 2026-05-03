@@ -14,6 +14,13 @@ _USER_COLUMNS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS lgpd_consent_ip VARCHAR",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf_cnpj VARCHAR",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_cpf_cnpj ON users (cpf_cnpj) WHERE cpf_cnpj IS NOT NULL",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
+    (
+        "CREATE TABLE IF NOT EXISTS processed_webhooks ("
+        "event_id VARCHAR PRIMARY KEY, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
 ]
 
 

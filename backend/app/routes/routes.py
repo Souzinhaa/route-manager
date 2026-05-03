@@ -242,12 +242,11 @@ async def optimize_route(
     cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
 
     # Increment daily usage and auto-save route to history
-    from datetime import datetime as _dt
     try:
         _increment_daily_usage(current_user.id, db)
         db_route = Route(
             user_id=current_user.id,
-            name=f"Rota {_dt.now().strftime('%d/%m %H:%M')}",
+            name=f"Rota {datetime.now().strftime('%d/%m %H:%M')}",
             optimization_type=req.optimization_type,
             start_address=req.start_address,
             end_address=req.end_address,

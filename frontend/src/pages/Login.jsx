@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { authService, setToken } from '../services/api'
+import { authService } from '../services/api'
 
 function Login({ setUser }) {
   const [email, setEmail] = useState('')
@@ -15,7 +15,6 @@ function Login({ setUser }) {
     setError('')
     try {
       const res = await authService.login(email, password)
-      setToken(res.data.access_token)
       setUser(res.data.user)
       navigate('/dashboard')
     } catch (err) {

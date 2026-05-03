@@ -1,27 +1,15 @@
 import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
-const TOKEN_KEY = 'access_token'
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
+  withCredentials: true,
 })
 
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
-}
-
-// Attach Bearer token to every request
-api.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) config.headers['Authorization'] = `Bearer ${token}`
-  return config
-})
+// No-ops kept for import compatibility — auth is cookie-only now
+export function getToken() { return null }
+export function setToken(_token) {}
 
 // 401 → broadcast logout event so App can clear state and redirect
 api.interceptors.response.use(

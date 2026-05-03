@@ -3,11 +3,12 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import get_current_user, get_db
+from app.limiter import limiter
 from app.models.db import User
 from app.models.schemas import PlanInfo, SubscribeRequest, SubscriptionResponse
 from app.services.asaas import AsaasService, PLAN_LIMITS
@@ -28,7 +29,9 @@ async def list_plans():
 
 
 @router.post("/subscribe", response_model=SubscriptionResponse)
+@limiter.limit("5/minute")
 async def subscribe(
+    request: Request,
     req: SubscribeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

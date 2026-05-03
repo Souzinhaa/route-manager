@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import get_db
-from app.models.db import User
+from app.models.db import ProcessedWebhook, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -30,6 +30,18 @@ async def asaas_webhook(
 
     body = await request.json()
     event: str = body.get("event", "")
+    event_id: str | None = body.get("id") or (body.get("payment") or {}).get("id")
+
+    if event_id:
+        existing = db.execute(
+            select(ProcessedWebhook).where(ProcessedWebhook.event_id == event_id)
+        ).scalars().first()
+        if existing:
+            logger.info("Duplicate webhook event_id=%s — skipped", event_id)
+            return {"status": "duplicate"}
+        db.add(ProcessedWebhook(event_id=event_id))
+        db.commit()  # persist before any early return so dedup works on all paths
+
     payment: dict = body.get("payment") or {}
     subscription_id: str | None = payment.get("subscription") or body.get("subscription", {}).get("id")
 

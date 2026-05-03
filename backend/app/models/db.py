@@ -43,6 +43,7 @@ class User(Base):
     lgpd_consent_at = Column(DateTime, nullable=True)
     lgpd_consent_ip = Column(String, nullable=True)
     cpf_cnpj = Column(String, nullable=True, unique=True)
+    deleted_at = Column(DateTime, nullable=True)
 
 
 class RouteOptimizationType(str, enum.Enum):
@@ -101,6 +102,13 @@ class DailyUsage(Base):
     user_id = Column(Integer, index=True)
     date = Column(Date, nullable=False)
     routes_used = Column(Integer, default=0)
+
+
+class ProcessedWebhook(Base):
+    __tablename__ = "processed_webhooks"
+
+    event_id = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 def get_db_url(settings):

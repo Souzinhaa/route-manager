@@ -34,7 +34,9 @@ function Results() {
 
   useEffect(() => {
     const saved = localStorage.getItem('lastRoute')
-    if (saved) setRoute(JSON.parse(saved))
+    if (saved) {
+      try { setRoute(JSON.parse(saved)) } catch (_) {}
+    }
   }, [])
 
   if (!route) {

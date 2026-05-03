@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger("app.main")
 
 logger.info("[startup] importing config...")
-from app.config import get_settings  # noqa: E402
+from app.config import get_settings, validate_production_settings  # noqa: E402
 
 logger.info("[startup] importing models...")
 from app.models.db import Base  # noqa: E402
@@ -32,7 +33,7 @@ from app.routes import health  # noqa: E402
 HEAVY_ROUTES_OK = True
 try:
     logger.info("[startup] importing heavy routes (auth, routes, billing, webhook)...")
-    from app.routes import auth, routes as routes_module, billing, webhook, admin  # noqa: E402
+    from app.routes import auth, routes as routes_module, billing, webhook, admin, users  # noqa: E402
     logger.info("[startup] heavy routes loaded.")
 except Exception as exc:  # pragma: no cover
     logger.exception("[startup] heavy routes failed to import: %s", exc)
@@ -44,8 +45,28 @@ settings = get_settings()
 from app.limiter import limiter  # noqa: E402
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://viacep.com.br; "
+            "frame-ancestors 'none';"
+        )
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_production_settings(settings)
     logger.info("[startup] creating database tables...")
     try:
         Base.metadata.create_all(bind=_engine)
@@ -83,6 +104,8 @@ app.add_middleware(
 )
 logger.info("[startup] CORS origins: %s (credentials=%s)", cors_origins, allow_credentials)
 
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.include_router(health.router)
 
 if HEAVY_ROUTES_OK:
@@ -91,6 +114,7 @@ if HEAVY_ROUTES_OK:
     app.include_router(billing.router)
     app.include_router(webhook.router)
     app.include_router(admin.router)
+    app.include_router(users.router)
 else:
     logger.warning("[startup] heavy routes disabled — only /health is available")
 
