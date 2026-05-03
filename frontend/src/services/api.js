@@ -7,9 +7,24 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// No-ops kept for import compatibility — auth is cookie-only now
+// No-ops kept for import compatibility — auth is httpOnly cookie + CSRF header
 export function getToken() { return null }
 export function setToken(_token) {}
+
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+// Attach CSRF token on state-changing requests (double-submit cookie pattern)
+api.interceptors.request.use((config) => {
+  const method = (config.method || 'get').toUpperCase()
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = getCsrfToken()
+    if (csrf) config.headers['X-CSRF-Token'] = csrf
+  }
+  return config
+})
 
 // 401 → broadcast logout event so App can clear state and redirect
 api.interceptors.response.use(

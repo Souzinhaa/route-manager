@@ -52,6 +52,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        if settings.cookie_secure:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; "
@@ -98,11 +100,14 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_credentials=allow_credentials,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["*", "Authorization", "Content-Type"],
+    allow_headers=["*", "Authorization", "Content-Type", "X-CSRF-Token"],
     expose_headers=["*"],
     max_age=3600,
 )
 logger.info("[startup] CORS origins: %s (credentials=%s)", cors_origins, allow_credentials)
+
+from app.middleware.csrf import CSRFMiddleware  # noqa: E402
+app.add_middleware(CSRFMiddleware)
 
 app.add_middleware(SecurityHeadersMiddleware)
 
