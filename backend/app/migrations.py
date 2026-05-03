@@ -9,6 +9,7 @@ _USER_COLUMNS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_id VARCHAR",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_status VARCHAR DEFAULT 'trial'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMP",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false",
 ]
 
 

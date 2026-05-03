@@ -30,10 +30,21 @@ class UserResponse(BaseModel):
     plan: str = "tester"
     plan_status: str = "trial"
     trial_expires_at: Optional[datetime] = None
+    is_admin: bool = False
+    routes_used_today: int = 0
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class AdminUserPatch(BaseModel):
+    plan: Optional[PlanTypeStr] = None
+    plan_status: Optional[PlanStatusStr] = None
+    subscription_id: Optional[str] = None
+    trial_expires_at: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
 
 
 class PlanInfo(BaseModel):

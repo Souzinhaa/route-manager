@@ -39,6 +39,7 @@ class User(Base):
     subscription_id = Column(String, nullable=True)
     plan_status = Column(String, default=PlanStatus.TRIAL)
     trial_expires_at = Column(DateTime, nullable=True)
+    is_admin = Column(Boolean, default=False)
 
 
 class RouteOptimizationType(str, enum.Enum):

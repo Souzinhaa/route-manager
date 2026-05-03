@@ -293,13 +293,24 @@ function Dashboard({ user, setUser }) {
   const [nfeFile, setNfeFile] = useState(null)
   const [nfeLoading, setNfeLoading] = useState(false)
   const [nfeCount, setNfeCount] = useState(0)
-  const [fuelPrice, setFuelPrice] = useState('')       // masked string e.g. "5,89"
-  const [fuelConsumption, setFuelConsumption] = useState('') // masked string e.g. "12,5"
+  const [fuelPrice, setFuelPrice] = useState('')
+  const [fuelConsumption, setFuelConsumption] = useState('')
   const [axleCount, setAxleCount] = useState(2)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [waypointShake, setWaypointShake] = useState(false)
   const nfeInputRef = useRef()
   const navigate = useNavigate()
+
+  const planKey = (user?.plan || 'tester').toLowerCase()
+  const waypointLimit = PLAN_LIMITS[planKey]?.max_waypoints ?? 50
+  const isWaypointUnlimited = waypointLimit === -1
+  const atWaypointLimit = !isWaypointUnlimited && waypoints.length >= waypointLimit
+
+  const triggerShake = () => {
+    setWaypointShake(true)
+    setTimeout(() => setWaypointShake(false), 600)
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem('uploadedWaypoints')
@@ -324,7 +335,9 @@ function Dashboard({ user, setUser }) {
   const addWaypoint = async () => {
     const val = currentWaypoint.trim()
     if (!val) return
+    if (atWaypointLimit) { triggerShake(); return }
     const addr = await resolveAddress(val)
+    if (!isWaypointUnlimited && waypoints.length >= waypointLimit) { triggerShake(); return }
     setWaypoints(prev => [...prev, { address: addr, priority: 0 }])
     setCurrentWaypoint('')
   }
@@ -540,14 +553,41 @@ function Dashboard({ user, setUser }) {
           </div>
 
           {/* Waypoints list */}
-          <div className="form-group">
-            <label>
-              Paradas ({waypoints.length})
-              {hasPriority && (
-                <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 400, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
-                  paradas com ordem definida entregues primeiro
-                </span>
-              )}
+          <style>{`
+            @keyframes shake {
+              0%,100% { transform: translateX(0); }
+              15%      { transform: translateX(-6px); }
+              30%      { transform: translateX(6px); }
+              45%      { transform: translateX(-5px); }
+              60%      { transform: translateX(5px); }
+              75%      { transform: translateX(-3px); }
+              90%      { transform: translateX(3px); }
+            }
+            .waypoint-limit-shake { animation: shake 0.55s ease; }
+          `}</style>
+          <div className={`form-group${waypointShake ? ' waypoint-limit-shake' : ''}`}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+              <span>
+                Paradas
+                {hasPriority && (
+                  <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 400, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
+                    paradas com ordem definida entregues primeiro
+                  </span>
+                )}
+              </span>
+              <span style={{
+                fontSize: '0.78rem', fontWeight: 700, letterSpacing: 0, textTransform: 'none',
+                color: atWaypointLimit ? '#f87171' : 'var(--text-2)',
+                background: atWaypointLimit ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${atWaypointLimit ? 'rgba(239,68,68,0.35)' : 'var(--border)'}`,
+                borderRadius: 6, padding: '0.2rem 0.55rem',
+                transition: 'all 0.25s',
+              }}>
+                {isWaypointUnlimited
+                  ? `${waypoints.length} paradas`
+                  : `${waypoints.length} / ${waypointLimit}`}
+                {atWaypointLimit && ' — limite atingido'}
+              </span>
             </label>
             <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: -4, marginBottom: 8 }}>
               Defina um número em "Ordem" para fixar a sequência. Em branco = otimização automática.
@@ -563,22 +603,37 @@ function Dashboard({ user, setUser }) {
               />
             ))}
 
-            <div className="waypoint-input-row" style={{ marginTop: 8 }}>
-              <input
-                type="text"
-                value={currentWaypoint}
-                onChange={e => setCurrentWaypoint(e.target.value)}
-                onKeyDown={async e => {
-                  if (e.key !== 'Enter') return
-                  e.preventDefault()
-                  addWaypoint()
-                }}
-                placeholder="CEP ou endereço + Enter"
-              />
-              <button type="button" className="btn-secondary" onClick={addWaypoint}>
-                + Adicionar
-              </button>
-            </div>
+            {atWaypointLimit && (
+              <div style={{
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 8, padding: '0.65rem 0.9rem', marginTop: 8,
+                fontSize: '0.82rem', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              }}>
+                <span>Limite de {waypointLimit} paradas atingido no plano <strong>{PLAN_LIMITS[planKey]?.name}</strong>.</span>
+                <Link to="/plans" style={{ color: '#f87171', fontWeight: 700, textDecoration: 'underline', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                  Fazer upgrade →
+                </Link>
+              </div>
+            )}
+
+            {!atWaypointLimit && (
+              <div className="waypoint-input-row" style={{ marginTop: 8 }}>
+                <input
+                  type="text"
+                  value={currentWaypoint}
+                  onChange={e => setCurrentWaypoint(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    addWaypoint()
+                  }}
+                  placeholder="CEP ou endereço + Enter"
+                />
+                <button type="button" className="btn-secondary" onClick={addWaypoint}>
+                  + Adicionar
+                </button>
+              </div>
+            )}
           </div>
 
           <button

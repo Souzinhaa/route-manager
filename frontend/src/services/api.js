@@ -70,6 +70,15 @@ export const routeService = {
   getHistory: () => api.get('/routes/history'),
 }
 
+export const adminService = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  getUser: (id) => api.get(`/admin/users/${id}`),
+  patchUser: (id, data) => api.patch(`/admin/users/${id}`, data),
+  getUserRoutes: (id) => api.get(`/admin/users/${id}/routes`),
+  deleteRoute: (userId, routeId) => api.delete(`/admin/users/${userId}/routes/${routeId}`),
+}
+
 export const billingService = {
   getPlans: () => api.get('/billing/plans'),
   subscribe: (plan, billingType, cpfCnpj) =>

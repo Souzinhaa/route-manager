@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, get_routes_used_today
 from app.limiter import limiter
 from app.models.db import User
 from app.models.schemas import (
@@ -132,5 +132,7 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    return UserResponse.model_validate(current_user)
+async def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    data = UserResponse.model_validate(current_user)
+    data.routes_used_today = get_routes_used_today(current_user.id, db)
+    return data
