@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { authService } from '../services/api'
 
 function Register() {
@@ -9,6 +9,8 @@ function Register() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const targetPlan = params.get('plan')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -16,7 +18,8 @@ function Register() {
     setError('')
     try {
       await authService.register(email, password, fullName)
-      navigate('/login')
+      // redirect to plans with welcome flag so user can subscribe
+      navigate('/plans?welcome=1')
     } catch (err) {
       const detail = err.response?.data?.detail
       setError(
@@ -41,7 +44,29 @@ function Register() {
             </svg>
           </div>
           <h1 className="auth-title">Criar conta grátis</h1>
-          <p className="auth-subtitle">Otimize sua primeira rota em menos de 1 minuto</p>
+          <p className="auth-subtitle">
+            {targetPlan
+              ? `Crie sua conta para assinar o plano ${targetPlan}`
+              : '3 dias grátis · Sem cartão de crédito'}
+          </p>
+        </div>
+
+        {/* Trial highlight */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.1), rgba(16,185,129,0.08))',
+          border: '1px solid rgba(37,99,235,0.2)',
+          borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem',
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: '1.1rem' }}>🎁</span>
+          <div>
+            <div style={{ color: 'var(--text-1)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>
+              Trial gratuito por 3 dias
+            </div>
+            <div style={{ color: 'var(--text-2)', fontSize: '0.8rem' }}>
+              1 rota/dia · 50 paradas · Acesso total à plataforma
+            </div>
+          </div>
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -89,6 +114,12 @@ function Register() {
             {loading ? 'Criando conta...' : 'Criar conta gratuita'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <Link to="/plans" style={{ color: 'var(--text-2)', fontSize: '0.82rem', textDecoration: 'none' }}>
+            Ver todos os planos →
+          </Link>
+        </div>
 
         <div className="auth-footer">
           Já tem conta?{' '}

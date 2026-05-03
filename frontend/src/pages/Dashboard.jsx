@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { routeService } from '../services/api'
 import { fetchCepData, buildAddressFromCepData } from '../components/CepInput'
 
@@ -213,8 +213,75 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
   )
 }
 
+const PLAN_LIMITS = {
+  tester:   { routes_per_day: 1,  max_waypoints: 50,  name: 'Trial' },
+  basic:    { routes_per_day: 1,  max_waypoints: 100, name: 'Basic' },
+  starter:  { routes_per_day: 3,  max_waypoints: 100, name: 'Starter' },
+  delivery: { routes_per_day: 5,  max_waypoints: 150, name: 'Delivery' },
+  premium:  { routes_per_day: 10, max_waypoints: 200, name: 'Premium' },
+  enterprise: { routes_per_day: -1, max_waypoints: -1, name: 'Enterprise' },
+}
+
+function PlanWidget({ user, todayRoutes }) {
+  if (!user) return null
+  const plan = user.plan || 'tester'
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.tester
+  const isUnlimited = limits.routes_per_day === -1
+  const used = todayRoutes || 0
+  const total = limits.routes_per_day
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: '0.75rem',
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '0.9rem 1.25rem', marginBottom: '1.5rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Plano</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+            {limits.name}
+            {user.plan_status === 'trial' && (
+              <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '0.15rem 0.45rem', borderRadius: 4, fontWeight: 700 }}>TRIAL</span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Rotas hoje</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+            {isUnlimited ? (
+              <span style={{ color: '#34d399' }}>Ilimitado</span>
+            ) : (
+              <>
+                <span style={{ color: used >= total ? '#f87171' : 'var(--primary-light)' }}>{used}</span>
+                <span style={{ color: 'var(--text-2)', fontWeight: 400 }}> / {total}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Max paradas</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem' }}>
+            {limits.max_waypoints === -1 ? <span style={{ color: '#34d399' }}>Ilimitado</span> : limits.max_waypoints}
+          </div>
+        </div>
+      </div>
+      <Link
+        to="/plans"
+        style={{
+          fontSize: '0.82rem', color: 'var(--primary-light)', fontWeight: 600,
+          textDecoration: 'none', whiteSpace: 'nowrap',
+        }}
+      >
+        {user.plan === 'tester' || user.plan_status !== 'active' ? 'Fazer upgrade →' : 'Ver planos →'}
+      </Link>
+    </div>
+  )
+}
+
 /* ── Dashboard page ── */
-function Dashboard({ user }) {
+function Dashboard({ user, setUser }) {
   const [routes, setRoutes] = useState([])
   const [vehicleType, setVehicleType] = useState('leve')
   const [startAddress, setStartAddress] = useState('')
@@ -333,6 +400,12 @@ function Dashboard({ user }) {
       <div className="page-subtitle">
         Configure paradas, prioridades e veículo para calcular a melhor rota.
       </div>
+
+      <PlanWidget user={user} todayRoutes={routes.filter(r => {
+        const d = new Date(r.created_at)
+        const today = new Date()
+        return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
+      }).length} />
 
       <div className="grid-2">
         {/* ── Form card ── */}

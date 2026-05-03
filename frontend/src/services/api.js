@@ -70,4 +70,12 @@ export const routeService = {
   getHistory: () => api.get('/routes/history'),
 }
 
+export const billingService = {
+  getPlans: () => api.get('/billing/plans'),
+  subscribe: (plan, billingType, cpfCnpj) =>
+    api.post('/billing/subscribe', { plan, billing_type: billingType, cpf_cnpj: cpfCnpj }),
+  getSubscription: () => api.get('/billing/subscription'),
+  cancelSubscription: () => api.delete('/billing/subscription'),
+}
+
 export default api

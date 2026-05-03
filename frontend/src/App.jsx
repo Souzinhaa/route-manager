@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
 import { authService, setToken, getToken } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
+import PlanBanner from './components/PlanBanner'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Results from './pages/Results'
+import Plans from './pages/Plans'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -64,8 +66,19 @@ function App() {
                   <nav className="header-nav-desktop">
                     <Link to="/dashboard">Painel</Link>
                     <Link to="/upload">Importar NFe</Link>
+                    <Link to="/plans">Planos</Link>
                     <span className="header-user-info">
-                      {user.full_name} &middot; <strong>{user.credits.toFixed(0)}</strong> créditos
+                      {user.full_name}
+                      {user.plan && user.plan !== 'tester' && (
+                        <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'rgba(37,99,235,0.2)', color: 'var(--primary-light)', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>
+                          {user.plan}
+                        </span>
+                      )}
+                      {(user.plan === 'tester' || !user.plan) && (
+                        <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 700 }}>
+                          TRIAL
+                        </span>
+                      )}
                     </span>
                     <button className="header-logout-btn" onClick={handleLogout}>Sair</button>
                   </nav>
@@ -94,13 +107,17 @@ function App() {
               <nav className="header-nav-mobile">
                 <Link to="/dashboard" onClick={closeNav}>Painel</Link>
                 <Link to="/upload" onClick={closeNav}>Importar NFe</Link>
+                <Link to="/plans" onClick={closeNav}>Planos</Link>
                 <div className="mobile-nav-user">
-                  {user.full_name} &middot; <strong>{user.credits.toFixed(0)} créditos</strong>
+                  {user.full_name}
                 </div>
                 <button className="mobile-nav-logout" onClick={handleLogout}>Sair</button>
               </nav>
             )}
           </header>
+
+          {/* ── Plan banner (logged in only) ── */}
+          {user && <PlanBanner user={user} />}
 
           {/* ── Page content ── */}
           <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
@@ -108,9 +125,10 @@ function App() {
               <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
               <Route path="/login" element={<Login setUser={setUser} />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/plans" element={<Plans user={user} />} />
               <Route
                 path="/dashboard"
-                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
+                element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/login" />}
               />
               <Route
                 path="/upload"
