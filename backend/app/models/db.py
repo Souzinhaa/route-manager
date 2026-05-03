@@ -40,6 +40,8 @@ class User(Base):
     plan_status = Column(String, default=PlanStatus.TRIAL)
     trial_expires_at = Column(DateTime, nullable=True)
     is_admin = Column(Boolean, default=False)
+    lgpd_consent_at = Column(DateTime, nullable=True)
+    lgpd_consent_ip = Column(String, nullable=True)
 
 
 class RouteOptimizationType(str, enum.Enum):

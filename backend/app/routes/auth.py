@@ -58,12 +58,20 @@ def _set_auth_cookies(response: Response, token: str, settings) -> None:
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
+    if not user.lgpd_consent:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Consentimento LGPD obrigatório para criar conta.",
+        )
+
     existing_user = db.execute(select(User).where(User.email == user.email)).scalars().first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
 
     db_user = User(
         email=user.email,
@@ -73,6 +81,8 @@ async def register(request: Request, user: UserCreate, db: Session = Depends(get
         plan="tester",
         plan_status="trial",
         trial_expires_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS),
+        lgpd_consent_at=datetime.utcnow(),
+        lgpd_consent_ip=client_ip,
     )
     db.add(db_user)
     try:

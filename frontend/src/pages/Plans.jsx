@@ -43,15 +43,22 @@ const PLANS = [
 
 function SubscribeModal({ plan, onClose, onSuccess }) {
   const [billingType, setBillingType] = useState('PIX')
+  const [cpfCnpj, setCpfCnpj] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
+  const needsCpf = billingType !== 'CREDIT_CARD'
+
   const handleSubmit = async () => {
+    if (needsCpf && !cpfCnpj.trim()) {
+      setError('CPF ou CNPJ obrigatório para PIX e Boleto.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      const res = await billingService.subscribe(plan.key, billingType)
+      const res = await billingService.subscribe(plan.key, billingType, needsCpf ? cpfCnpj.replace(/\D/g, '') : undefined)
       if (res.data.payment_url) {
         window.open(res.data.payment_url, '_blank')
       }
@@ -92,6 +99,26 @@ function SubscribeModal({ plan, onClose, onSuccess }) {
         <p style={{ color: 'var(--text-2)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           R$ {plan.price}/mês · Cancele quando quiser
         </p>
+
+        {needsCpf && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              CPF ou CNPJ
+            </label>
+            <input
+              type="text"
+              value={cpfCnpj}
+              onChange={e => setCpfCnpj(e.target.value)}
+              placeholder="000.000.000-00 ou 00.000.000/0001-00"
+              maxLength={18}
+              style={{
+                width: '100%', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-1)',
+                fontSize: '0.9rem', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
 
         <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'block', color: 'var(--text-2)', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>

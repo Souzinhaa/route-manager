@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=120)
+    lgpd_consent: bool = Field(..., description="Consentimento LGPD obrigatório")
 
 
 class UserLogin(BaseModel):

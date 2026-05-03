@@ -35,8 +35,8 @@ api.interceptors.response.use(
 )
 
 export const authService = {
-  register: (email, password, fullName) =>
-    api.post('/auth/register', { email, password, full_name: fullName }),
+  register: (email, password, fullName, lgpdConsent) =>
+    api.post('/auth/register', { email, password, full_name: fullName, lgpd_consent: lgpdConsent }),
   login: (email, password) =>
     api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout'),

@@ -6,6 +6,7 @@ function Register({ setUser }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [lgpdConsent, setLgpdConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -14,10 +15,14 @@ function Register({ setUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!lgpdConsent) {
+      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar uma conta.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      await authService.register(email, password, fullName)
+      await authService.register(email, password, fullName, true)
       // Auto-login após registrar para salvar token e user no App state
       const loginRes = await authService.login(email, password)
       setToken(loginRes.data.access_token)
@@ -108,10 +113,32 @@ function Register({ setUser }) {
               autoComplete="new-password"
             />
           </div>
+          <div style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={lgpdConsent}
+                onChange={e => setLgpdConsent(e.target.checked)}
+                style={{ marginTop: 3, flexShrink: 0, accentColor: 'var(--primary)', width: 16, height: 16 }}
+              />
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-2)', lineHeight: 1.5 }}>
+                Li e aceito os{' '}
+                <a href="/termos-de-uso" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)' }}>
+                  Termos de Uso
+                </a>
+                {' '}e a{' '}
+                <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)' }}>
+                  Política de Privacidade
+                </a>
+                , incluindo o tratamento dos meus dados pessoais conforme a LGPD (Lei nº 13.709/2018).
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
             className="btn-primary"
-            disabled={loading}
+            disabled={loading || !lgpdConsent}
             style={{ marginTop: 6 }}
           >
             {loading ? 'Criando conta...' : 'Criar conta gratuita'}
