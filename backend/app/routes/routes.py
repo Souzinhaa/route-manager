@@ -32,6 +32,10 @@ router = APIRouter(prefix="/api/routes", tags=["routes"])
 
 
 def _check_plan_access(user: User, num_waypoints: int, db: Session) -> None:
+    # Admins have unlimited access
+    if user.is_admin:
+        return
+
     plan_key = (user.plan or "tester").lower()
     plan_status = (user.plan_status or "trial").lower()
 

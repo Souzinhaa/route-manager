@@ -90,6 +90,7 @@ export const adminService = {
   getUserRoutes: (id) => api.get(`/admin/users/${id}/routes`),
   deleteRoute: (userId, routeId) => api.delete(`/admin/users/${userId}/routes/${routeId}`),
   changePassword: (newPassword) => api.post('/admin/change-password', { new_password: newPassword }),
+  getUserCosts: (params) => api.get('/admin/user-costs', { params }),
 }
 
 export const billingService = {

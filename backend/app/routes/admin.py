@@ -336,6 +336,41 @@ async def toggle_coupon(
     return CouponResponse.model_validate(coupon)
 
 
+@router.get("/user-costs")
+async def get_user_costs(
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    """Get cost breakdown per user (total amount paid via transactions)."""
+    stmt = (
+        select(
+            User.id,
+            User.email,
+            User.plan,
+            func.count(Transaction.id).label("transaction_count"),
+            func.sum(Transaction.amount_paid).label("total_paid"),
+        )
+        .outerjoin(Transaction, User.id == Transaction.user_id)
+        .group_by(User.id, User.email, User.plan)
+        .order_by(func.sum(Transaction.amount_paid).desc().nullslast())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = db.execute(stmt).all()
+    return [
+        {
+            "user_id": r.id,
+            "email": r.email,
+            "plan": r.plan,
+            "transaction_count": r.transaction_count or 0,
+            "total_paid": float(r.total_paid or 0),
+        }
+        for r in rows
+    ]
+
+
 # ── Transactions ──────────────────────────────────────────────────────────────
 
 @router.get("/transactions", response_model=List[TransactionResponse])
