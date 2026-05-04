@@ -232,7 +232,14 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
 
           {/* Maps + actions */}
           <div className="card">
-            <div className="card-title">Google Maps</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div className="card-title" style={{ marginBottom: 0 }}>Google Maps</div>
+              {route.vehicleType && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-2)', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.6rem', borderRadius: 4 }}>
+                  {VEHICLE_LABEL[route.vehicleType]}
+                </span>
+              )}
+            </div>
             {route.google_maps_url ? (
               <a
                 className="maps-btn"
