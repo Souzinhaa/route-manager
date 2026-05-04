@@ -128,6 +128,12 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
           <div className="stat-value">{route.optimized_waypoints?.length || 0}</div>
           <div className="stat-label">Paradas</div>
         </div>
+        {tollTotal != null && (
+          <div className="stat-card">
+            <div className="stat-value">{fmt(tollTotal)}</div>
+            <div className="stat-label">Pedágios (est.)</div>
+          </div>
+        )}
       </div>
 
       {/* Main two-column grid */}

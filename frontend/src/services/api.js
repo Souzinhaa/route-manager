@@ -79,6 +79,7 @@ export const routeService = {
       waypoints,
     }),
   getHistory: () => api.get('/routes/history'),
+  autocompleteAddress: (q) => api.get('/routes/autocomplete', { params: { q } }),
 }
 
 export const adminService = {

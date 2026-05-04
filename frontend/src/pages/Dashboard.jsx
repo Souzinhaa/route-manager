@@ -41,12 +41,15 @@ async function resolveAddress(val) {
   return val
 }
 
-/* ── Address field with CEP + number ── */
+/* ── Address field with CEP + number + autocomplete ── */
 function AddressField({ label, value, onChange, placeholder }) {
   const [cep, setCep] = useState('')
   const [number, setNumber] = useState('')
   const [cepData, setCepData] = useState(null)
   const [cepStatus, setCepStatus] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false)
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
@@ -71,6 +74,36 @@ function AddressField({ label, value, onChange, placeholder }) {
     const num = e.target.value
     setNumber(num)
     if (cepData) onChange(buildAddressFromCepData(cepData, num))
+  }
+
+  const handleAddressChange = async (e) => {
+    const val = e.target.value
+    onChange(val)
+    setCepStatus(null)
+    setCepData(null)
+
+    // Trigger autocomplete if user typed more than 3 chars
+    if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+      setAutocompleteLoading(true)
+      setShowSuggestions(true)
+      try {
+        const res = await routeService.autocompleteAddress(val)
+        setSuggestions(res.data || [])
+      } catch (_) {
+        setSuggestions([])
+      } finally {
+        setAutocompleteLoading(false)
+      }
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelectSuggestion = (address) => {
+    onChange(address)
+    setSuggestions([])
+    setShowSuggestions(false)
   }
 
   return (
@@ -105,12 +138,45 @@ function AddressField({ label, value, onChange, placeholder }) {
           <span className="cep-status" style={{ color: 'var(--danger)' }}>CEP inválido</span>
         )}
       </div>
-      <input
-        type="text"
-        value={value}
-        onChange={e => { onChange(e.target.value); setCepStatus(null); setCepData(null) }}
-        placeholder={placeholder || 'Ou digite o endereço completo'}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={value}
+          onChange={handleAddressChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder={placeholder || 'Ou digite o endereço completo'}
+        />
+        {showSuggestions && (suggestions.length > 0 || autocompleteLoading) && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+            background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+            borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 200, overflowY: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}>
+            {autocompleteLoading ? (
+              <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.85rem' }}>
+                Buscando...
+              </div>
+            ) : (
+              suggestions.map((sugg, i) => (
+                <div
+                  key={i}
+                  onMouseDown={() => handleSelectSuggestion(sugg.address)}
+                  style={{
+                    padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-1)', fontSize: '0.85rem', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {sugg.address}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

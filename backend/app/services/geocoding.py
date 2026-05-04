@@ -41,6 +41,31 @@ class GeocodingService:
             logger.error("Geocoding response malformed for %r: %s", address, exc)
             return None
 
+    def search(self, query: str) -> List[str]:
+        """Search for addresses and return formatted address strings."""
+        if not self.api_key:
+            logger.warning("Address search skipped: GOOGLE_MAPS_API_KEY is not set")
+            return []
+
+        try:
+            response = requests.get(
+                self.BASE_URL,
+                params={"address": query, "key": self.api_key},
+                timeout=5,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.error("Address search failed for %r: %s", query, exc)
+            return []
+
+        try:
+            data = response.json()
+            results = data.get("results") or []
+            return [r.get("formatted_address", "") for r in results if r.get("formatted_address")]
+        except (KeyError, ValueError) as exc:
+            logger.error("Address search response malformed for %r: %s", query, exc)
+            return []
+
     def get_distance_matrix(self, origins: List[str], destinations: List[str]) -> Dict[str, Any]:
         if not self.api_key:
             logger.warning("Distance matrix skipped: GOOGLE_MAPS_API_KEY is not set")

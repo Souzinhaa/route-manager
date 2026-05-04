@@ -275,6 +275,26 @@ async def optimize_route(
     )
 
 
+@router.get("/autocomplete")
+async def autocomplete_address(
+    q: str = Query(..., min_length=2),
+    settings=Depends(get_settings),
+):
+    """Autocomplete address using Google Geocoding API."""
+    if not q.strip():
+        return []
+
+    geo = GeocodingService(settings.google_maps_api_key)
+    try:
+        # Use Google Geocoding to search for matching addresses
+        # Returns up to 5 suggestions
+        results = geo.search(q.strip())
+        return [{"address": addr} for addr in results[:5]]
+    except Exception as exc:
+        logger.warning("Autocomplete failed for query %r: %s", q, exc)
+        return []
+
+
 @router.get("/history", response_model=list[RouteResponse])
 async def get_user_routes(
     current_user: User = Depends(get_current_user),
