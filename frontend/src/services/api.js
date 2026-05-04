@@ -11,9 +11,10 @@ const api = axios.create({
 export function getToken() { return null }
 export function setToken(_token) {}
 
+// CSRF token is stored in localStorage because in cross-origin deployments (Vercel → Render)
+// document.cookie cannot read cookies set by a different domain.
 function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+  return localStorage.getItem('csrf_token')
 }
 
 // Attach CSRF token on state-changing requests (double-submit cookie pattern)
@@ -40,9 +41,16 @@ api.interceptors.response.use(
 export const authService = {
   register: (email, password, fullName, cpfCnpj, lgpdConsent) =>
     api.post('/auth/register', { email, password, full_name: fullName, cpf_cnpj: cpfCnpj, lgpd_consent: lgpdConsent }),
-  login: (email, password) =>
-    api.post('/auth/login', { email, password }),
-  logout: () => api.post('/auth/logout'),
+  login: async (email, password) => {
+    const res = await api.post('/auth/login', { email, password })
+    if (res.data?.csrf_token) localStorage.setItem('csrf_token', res.data.csrf_token)
+    return res
+  },
+  logout: async () => {
+    const res = await api.post('/auth/logout')
+    localStorage.removeItem('csrf_token')
+    return res
+  },
   getCurrentUser: () => api.get('/auth/me'),
 }
 

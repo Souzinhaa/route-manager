@@ -93,6 +93,14 @@ app = FastAPI(title="Route Manager API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from app.middleware.csrf import CSRFMiddleware  # noqa: E402
+
+# Middleware order matters: last add_middleware = outermost = runs first on request.
+# SecurityHeaders → CSRF → CORS (outermost) ensures all responses get CORS headers,
+# including 403s from CSRFMiddleware, so the browser sees the real error not a fake CORS error.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CSRFMiddleware)
+
 cors_origins = settings.cors_origins_list
 allow_credentials = "*" not in cors_origins
 app.add_middleware(
@@ -105,11 +113,6 @@ app.add_middleware(
     max_age=3600,
 )
 logger.info("[startup] CORS origins: %s (credentials=%s)", cors_origins, allow_credentials)
-
-from app.middleware.csrf import CSRFMiddleware  # noqa: E402
-app.add_middleware(CSRFMiddleware)
-
-app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health.router)
 

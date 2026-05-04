@@ -302,11 +302,16 @@ function Dashboard({ user, setUser }) {
   const [fuelPrice, setFuelPrice] = useState('')
   const [fuelConsumption, setFuelConsumption] = useState('')
   const [axleCount, setAxleCount] = useState(2)
+  const [sameEndAsStart, setSameEndAsStart] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [waypointShake, setWaypointShake] = useState(false)
   const nfeInputRef = useRef()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (sameEndAsStart) setEndAddress(startAddress)
+  }, [startAddress, sameEndAsStart])
 
   const planKey = (user?.plan || 'tester').toLowerCase()
   const waypointLimit = PLAN_LIMITS[planKey]?.max_waypoints ?? 50
@@ -457,12 +462,27 @@ function Dashboard({ user, setUser }) {
             onChange={setStartAddress}
             placeholder="Ex: Av. Paulista, 1000, São Paulo, SP"
           />
-          <AddressField
-            label="Endereço de Chegada"
-            value={endAddress}
-            onChange={setEndAddress}
-            placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: -4 }}>
+            <input
+              type="checkbox"
+              id="same-end-as-start"
+              checked={sameEndAsStart}
+              onChange={e => setSameEndAsStart(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)', flexShrink: 0 }}
+            />
+            <label htmlFor="same-end-as-start" style={{ fontSize: '0.85rem', color: 'var(--text-2)', cursor: 'pointer', margin: 0 }}>
+              Mesmo endereço de saída
+            </label>
+          </div>
+
+          {!sameEndAsStart && (
+            <AddressField
+              label="Endereço de Chegada"
+              value={endAddress}
+              onChange={setEndAddress}
+              placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
+            />
+          )}
 
           {/* Fuel & costs */}
           <div className="fuel-block">

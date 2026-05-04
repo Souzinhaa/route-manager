@@ -45,8 +45,8 @@ def create_access_token(data: dict, settings, expires_delta: timedelta | None = 
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
-def _set_auth_cookies(response: Response, token: str, settings) -> None:
-    """Set httpOnly access_token + readable csrf_token cookie."""
+def _set_auth_cookies(response: Response, token: str, settings) -> str:
+    """Set httpOnly access_token + readable csrf_token cookie. Returns csrf_token value."""
     csrf_token = secrets.token_hex(32)
     max_age = settings.access_token_expire_minutes * 60
     samesite = "none" if settings.cookie_secure else "lax"
@@ -54,6 +54,7 @@ def _set_auth_cookies(response: Response, token: str, settings) -> None:
     response.set_cookie(key="access_token", value=token, httponly=True, **shared)
     response.set_cookie(key="csrf_token", value=csrf_token, httponly=False, **shared)
     logger.info("[auth] cookies set: secure=%s samesite=%s max_age=%s", settings.cookie_secure, samesite, max_age)
+    return csrf_token
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -145,12 +146,13 @@ async def login(
             db.rollback()
 
     access_token = create_access_token({"sub": user.email}, settings=settings)
-    _set_auth_cookies(response, access_token, settings)
+    csrf_token = _set_auth_cookies(response, access_token, settings)
 
     logger.info("User logged in: %s", user.email)
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
+        csrf_token=csrf_token,
         user=UserResponse.model_validate(db_user),
     )
 

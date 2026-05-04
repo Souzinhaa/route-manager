@@ -98,6 +98,7 @@ class AsaasWebhookPayload(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    csrf_token: str = ""
     user: UserResponse
 
 
