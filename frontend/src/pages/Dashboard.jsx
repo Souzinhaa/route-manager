@@ -365,6 +365,8 @@ function Dashboard({ user, setUser }) {
   const [nfeFile, setNfeFile] = useState(null)
   const [nfeLoading, setNfeLoading] = useState(false)
   const [nfeCount, setNfeCount] = useState(0)
+  const [nfeTypeModal, setNfeTypeModal] = useState(false)
+  const [nfeAddressType, setNfeAddressType] = useState('both')
   const [fuelPrice, setFuelPrice] = useState('')
   const [fuelConsumption, setFuelConsumption] = useState('')
   const [axleCount, setAxleCount] = useState(2)
@@ -430,7 +432,12 @@ function Dashboard({ user, setUser }) {
     setNfeLoading(true)
     setError('')
     try {
-      const res = await routeService.uploadFile(nfeFile)
+      const formData = new FormData()
+      formData.append('file', nfeFile)
+      const res = await routeService.api.post('/routes/upload', formData, {
+        params: { address_type: nfeAddressType },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       const addresses = res.data.extracted_data?.addresses || []
       const newWps = addresses
         .map(a => ({ address: a.address || a, priority: 0 }))
@@ -438,6 +445,7 @@ function Dashboard({ user, setUser }) {
       setWaypoints(prev => [...prev, ...newWps])
       setNfeCount(prev => prev + newWps.length)
       setNfeFile(null)
+      setNfeTypeModal(false)
       if (nfeInputRef.current) nfeInputRef.current.value = ''
       if (newWps.length === 0) setError('Nenhum endereço encontrado neste arquivo.')
     } catch (err) {
@@ -633,13 +641,50 @@ function Dashboard({ user, setUser }) {
                   <button
                     type="button"
                     className="btn-success"
-                    onClick={handleNfeUpload}
+                    onClick={() => nfeFile && setNfeTypeModal(true)}
                     disabled={!nfeFile || nfeLoading}
                     style={{ width: 'auto', flexShrink: 0 }}
                   >
                     {nfeLoading ? '...' : 'Extrair'}
                   </button>
                 </div>
+
+                {nfeTypeModal && (
+                  <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
+                  }} onClick={() => !nfeLoading && setNfeTypeModal(false)}>
+                    <div style={{
+                      background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.5rem', maxWidth: 360, boxShadow: '0 20px 25px rgba(0,0,0,0.15)'
+                    }} onClick={e => e.stopPropagation()}>
+                      <h3 style={{ color: 'var(--text-1)', marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>Qual endereço extrair?</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        {[
+                          { val: 'destination', label: '📍 Só destinatário', desc: 'Endereço de entrega' },
+                          { val: 'origin', label: '📦 Só remetente', desc: 'Endereço de saída' },
+                          { val: 'both', label: '↔️ Ambos', desc: 'Remetente e destinatário' },
+                        ].map(opt => (
+                          <label key={opt.val} style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '0.75rem', background: nfeAddressType === opt.val ? 'rgba(37,99,235,0.1)' : 'transparent', border: `1px solid ${nfeAddressType === opt.val ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 0.1s'
+                          }}>
+                            <input type="radio" name="nfe-type" value={opt.val} checked={nfeAddressType === opt.val} onChange={e => setNfeAddressType(e.target.value)} style={{ cursor: 'pointer' }} />
+                            <div>
+                              <div style={{ color: 'var(--text-1)', fontSize: '0.9rem', fontWeight: 500 }}>{opt.label}</div>
+                              <div style={{ color: 'var(--text-2)', fontSize: '0.75rem' }}>{opt.desc}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button type="button" className="btn-primary" onClick={handleNfeUpload} disabled={nfeLoading} style={{ flex: 1 }}>
+                          {nfeLoading ? 'Extraindo...' : 'Extrair'}
+                        </button>
+                        <button type="button" onClick={() => setNfeTypeModal(false)} disabled={nfeLoading} style={{ flex: 1, padding: '0.6rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

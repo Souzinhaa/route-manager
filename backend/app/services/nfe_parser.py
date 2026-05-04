@@ -127,15 +127,18 @@ class NFEParser:
     @staticmethod
     def parse_pdf_nfe(file_path: str) -> List[Dict]:
         try:
-            images = convert_from_path(file_path)
+            # Process only first page for speed; DANFE is single-page
+            images = convert_from_path(file_path, first_page=1, last_page=1)
         except Exception as exc:
             logger.error("PDF conversion failed for %s: %s", file_path, exc)
             return []
 
         text = ""
         try:
-            for image in images[:5]:
-                text += pytesseract.image_to_string(image, lang="por+eng")
+            for image in images:
+                # Reduce resolution for faster OCR; DANFE text is large enough
+                small_image = image.resize((image.width // 2, image.height // 2))
+                text += pytesseract.image_to_string(small_image, lang="por+eng")
         except Exception as exc:
             logger.error("OCR failed for %s: %s", file_path, exc)
             return []
@@ -146,7 +149,9 @@ class NFEParser:
     def parse_image_nfe(file_path: str) -> List[Dict]:
         try:
             image = Image.open(file_path)
-            text = pytesseract.image_to_string(image, lang="por+eng")
+            # Reduce resolution for faster OCR
+            small_image = image.resize((image.width // 2, image.height // 2))
+            text = pytesseract.image_to_string(small_image, lang="por+eng")
         except Exception as exc:
             logger.error("Image OCR failed for %s: %s", file_path, exc)
             return []

@@ -108,6 +108,7 @@ def _sanitize_filename(raw: str) -> str:
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
+    address_type: str = Query(default="both", regex="^(destination|origin|both)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings=Depends(get_settings),
@@ -155,6 +156,10 @@ async def upload_file(
 
     # NFEParser is sync (PDF/OCR is CPU-bound); offload to threadpool to avoid blocking the loop.
     extracted_data = await asyncio.to_thread(NFEParser.parse_file, str(file_path))
+
+    # Filter by address_type: keep only requested type(s)
+    if address_type != "both":
+        extracted_data = [a for a in extracted_data if a.get("type") == address_type]
 
     db_upload = Upload(
         user_id=current_user.id,
