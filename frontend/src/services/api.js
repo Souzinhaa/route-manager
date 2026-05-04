@@ -85,11 +85,24 @@ export const adminService = {
 
 export const billingService = {
   getPlans: () => api.get('/billing/plans'),
-  subscribe: (plan, billingType, cpfCnpj) =>
-    api.post('/billing/subscribe', { plan, billing_type: billingType, cpf_cnpj: cpfCnpj }),
+  subscribe: (plan, billingType, cpfCnpj, couponCode) =>
+    api.post('/billing/subscribe', { plan, billing_type: billingType, cpf_cnpj: cpfCnpj, coupon_code: couponCode || undefined }),
+  validateCoupon: (code) =>
+    api.post('/billing/coupons/validate', { code }),
   getSubscription: () => api.get('/billing/subscription'),
   cancelSubscription: () => api.delete('/billing/subscription'),
   downgrade: () => api.post('/billing/downgrade'),
+}
+
+export const adminBillingService = {
+  getPartners: () => api.get('/admin/partners'),
+  createPartner: (data) => api.post('/admin/partners', data),
+  getPartner: (id) => api.get(`/admin/partners/${id}`),
+  withdrawCommission: (id, amount) => api.post(`/admin/partners/${id}/withdraw`, { amount }),
+  getCoupons: () => api.get('/admin/coupons'),
+  createCoupon: (data) => api.post('/admin/coupons', data),
+  toggleCoupon: (id) => api.patch(`/admin/coupons/${id}`),
+  getTransactions: (params) => api.get('/admin/transactions', { params }),
 }
 
 export default api

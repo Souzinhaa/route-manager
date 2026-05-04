@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -10,22 +10,52 @@ from app.config import get_settings
 from app.deps import get_current_user, get_db
 from app.limiter import limiter
 from app.models.db import User
-from app.models.schemas import PlanInfo, SubscribeRequest, SubscriptionResponse
-from app.services.asaas import AsaasService, PLAN_LIMITS
+from app.models.schemas import (
+    CouponValidateRequest,
+    CouponValidateResponse,
+    PlanInfo,
+    SubscribeRequest,
+    SubscriptionResponse,
+)
+from app.services import billing_service, pricing
+from app.services.asaas import AsaasService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
-_PAID_PLANS = {"basic", "starter", "delivery", "premium"}
+_PAID_PLANS = {"basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"}
+_SELF_SERVE_PLANS = _PAID_PLANS
 
 
 @router.get("/plans", response_model=List[PlanInfo])
 async def list_plans():
-    return [
-        PlanInfo(key=k, **{f: v for f, v in v.items()})
-        for k, v in PLAN_LIMITS.items()
-        if k != "enterprise"
-    ]
+    keys = ["basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"]
+    result = []
+    for k in keys:
+        p = pricing.PLANS[k]
+        result.append(PlanInfo(
+            key=k,
+            name=p["name"],
+            tier=p["tier"],
+            routes_per_day=p["routes_per_day"],
+            max_stops=p["max_stops"],
+            price_full=float(p["price_full"]),
+            price_coupon=float(p["price_coupon"]),
+            price_onboarding=float(p["price_onboarding"]),
+        ))
+    return result
+
+
+@router.post("/coupons/validate", response_model=CouponValidateResponse)
+async def validate_coupon(
+    req: CouponValidateRequest,
+    db: Session = Depends(get_db),
+):
+    result = billing_service.validate_coupon(db, req.code)
+    if not result:
+        raise HTTPException(status_code=404, detail="Cupom inválido ou inativo")
+    _, partner = result
+    return CouponValidateResponse(valid=True, partner_name=partner.name, applies_discount=True)
 
 
 @router.post("/subscribe", response_model=SubscriptionResponse)
@@ -37,15 +67,26 @@ async def subscribe(
     db: Session = Depends(get_db),
     settings=Depends(get_settings),
 ):
-    if req.plan not in _PAID_PLANS:
-        raise HTTPException(status_code=400, detail="Invalid plan for subscription")
+    if req.plan == "enterprise_custom":
+        raise HTTPException(status_code=400, detail="Entre em contato com vendas para plano Enterprise Custom")
+
+    if req.plan not in _SELF_SERVE_PLANS:
+        raise HTTPException(status_code=400, detail="Plano inválido para assinatura")
 
     if not settings.asaas_api_key:
         raise HTTPException(status_code=503, detail="Payment service not configured")
 
+    coupon_obj = None
+    partner_obj = None
+    if req.coupon_code:
+        result = billing_service.validate_coupon(db, req.coupon_code)
+        if not result:
+            raise HTTPException(status_code=400, detail="Cupom inválido ou inativo")
+        coupon_obj, partner_obj = result
+        billing_service.attach_coupon_to_user(db, current_user, coupon_obj)
+
     asaas = AsaasService(settings.asaas_api_key, sandbox=settings.asaas_sandbox)
 
-    # Create Asaas customer if not exists
     if not current_user.asaas_customer_id:
         try:
             customer = await asyncio.to_thread(
@@ -59,7 +100,8 @@ async def subscribe(
             logger.exception("Asaas create_customer failed for %s: %s", current_user.email, exc)
             raise HTTPException(status_code=502, detail=str(exc) or "Could not create payment customer")
 
-    plan_info = PLAN_LIMITS[req.plan]
+    value = pricing.resolve_price(req.plan, current_user.is_onboarding, has_coupon=bool(coupon_obj))
+    plan_data = pricing.get_plan(req.plan)
     next_due = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     try:
@@ -67,9 +109,9 @@ async def subscribe(
             asaas.create_subscription,
             current_user.asaas_customer_id,
             req.billing_type,
-            plan_info["price"],
+            value,
             next_due,
-            f"Route Manager — {plan_info['name']}",
+            f"Route Manager — {plan_data['name']}",
         )
     except Exception as exc:
         logger.exception("Asaas create_subscription failed for %s: %s", current_user.email, exc)
@@ -118,7 +160,7 @@ async def get_subscription(
 
     asaas = AsaasService(settings.asaas_api_key, sandbox=settings.asaas_sandbox)
     try:
-        data = await asyncio.to_thread(asaas.get_subscription, current_user.subscription_id)
+        await asyncio.to_thread(asaas.get_subscription, current_user.subscription_id)
     except Exception as exc:
         logger.warning("Could not fetch subscription %s: %s", current_user.subscription_id, exc)
         raise HTTPException(status_code=502, detail="Could not fetch subscription status")

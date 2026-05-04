@@ -5,7 +5,10 @@ from datetime import datetime
 
 OptimizationType = Literal["tsp", "vrp"]
 
-PlanTypeStr = Literal["tester", "basic", "starter", "delivery", "premium", "enterprise"]
+PlanTypeStr = Literal[
+    "tester", "basic", "starter", "delivery", "premium",
+    "enterprise", "enterprise_medio", "enterprise_avancado", "enterprise_custom"
+]
 PlanStatusStr = Literal["trial", "active", "pending", "cancelled"]
 BillingTypeStr = Literal["CREDIT_CARD", "PIX", "BOLETO"]
 
@@ -44,6 +47,9 @@ class UserResponse(BaseModel):
     routes_used_today: int = 0
     created_at: datetime
     cpf_cnpj: Optional[str] = None
+    is_onboarding: bool = True
+    coupon_code: Optional[str] = None
+    partner_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -61,15 +67,19 @@ class AdminUserPatch(BaseModel):
 class PlanInfo(BaseModel):
     key: str
     name: str
+    tier: str
     routes_per_day: int
-    max_waypoints: int
-    price: float
+    max_stops: int
+    price_full: float
+    price_coupon: float
+    price_onboarding: float
 
 
 class SubscribeRequest(BaseModel):
     plan: PlanTypeStr
     billing_type: BillingTypeStr = "PIX"
     cpf_cnpj: Optional[str] = None
+    coupon_code: Optional[str] = None
 
 
 class SubscriptionResponse(BaseModel):
@@ -156,3 +166,64 @@ class OptimizeRouteResponse(BaseModel):
     total_distance_km: float
     total_duration_minutes: float
     cost_estimate: float
+
+
+class CouponValidateRequest(BaseModel):
+    code: str
+
+
+class CouponValidateResponse(BaseModel):
+    valid: bool
+    partner_name: Optional[str] = None
+    applies_discount: bool = True
+
+
+class PartnerCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    contact_email: Optional[str] = None
+
+
+class PartnerResponse(BaseModel):
+    id: int
+    name: str
+    contact_email: Optional[str] = None
+    commission_balance: float
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CouponCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    partner_id: int
+
+
+class CouponResponse(BaseModel):
+    id: int
+    code: str
+    partner_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionResponse(BaseModel):
+    id: int
+    user_id: int
+    plan: str
+    amount_paid: float
+    full_price: float
+    commission_amount: float
+    coupon_used: bool
+    coupon_id: Optional[int] = None
+    partner_id: Optional[int] = None
+    asaas_payment_id: str
+    event_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

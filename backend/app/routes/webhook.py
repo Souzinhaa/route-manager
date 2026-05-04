@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.deps import get_db
 from app.models.db import ProcessedWebhook, User
+from app.services import billing_service, pricing
+from app.services.asaas import AsaasService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -23,7 +26,6 @@ async def asaas_webhook(
     settings=Depends(get_settings),
     asaas_access_token: str = Header(None, alias="asaas-access-token"),
 ):
-    # Validate webhook token
     if settings.asaas_webhook_token:
         if asaas_access_token != settings.asaas_webhook_token:
             raise HTTPException(status_code=403, detail="Invalid webhook token")
@@ -40,7 +42,7 @@ async def asaas_webhook(
             logger.info("Duplicate webhook event_id=%s — skipped", event_id)
             return {"status": "duplicate"}
         db.add(ProcessedWebhook(event_id=event_id))
-        db.commit()  # persist before any early return so dedup works on all paths
+        db.commit()
 
     payment: dict = body.get("payment") or {}
     subscription_id: str | None = payment.get("subscription") or body.get("subscription", {}).get("id")
@@ -61,6 +63,29 @@ async def asaas_webhook(
     if event in _PAYMENT_ACTIVE:
         user.plan_status = "active"
         logger.info("User %s plan activated (event=%s)", user.email, event)
+
+        payment_id = payment.get("id")
+        amount = float(payment.get("value", 0))
+        if payment_id:
+            billing_service.record_transaction(db, user, payment_id, amount, event)
+
+        if user.is_onboarding:
+            user.is_onboarding = False
+            db.flush()
+            new_value = pricing.resolve_price(user.plan, False, bool(user.coupon_id))
+            if user.subscription_id and settings.asaas_api_key:
+                try:
+                    asaas = AsaasService(settings.asaas_api_key, sandbox=settings.asaas_sandbox)
+                    await asyncio.to_thread(asaas.update_subscription, user.subscription_id, new_value)
+                    logger.info(
+                        "Updated subscription %s to value %.2f after onboarding",
+                        user.subscription_id, new_value,
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Asaas update_subscription failed post-onboarding for %s: %s",
+                        user.email, exc,
+                    )
 
     elif event in _PAYMENT_OVERDUE:
         user.plan_status = "pending"

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Float, Boolean, JSON, Enum, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Float, Boolean, JSON, Enum, UniqueConstraint, Numeric, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -14,6 +14,9 @@ class PlanType(str, enum.Enum):
     DELIVERY = "delivery"
     PREMIUM = "premium"
     ENTERPRISE = "enterprise"
+    ENTERPRISE_MEDIO = "enterprise_medio"
+    ENTERPRISE_AVANCADO = "enterprise_avancado"
+    ENTERPRISE_CUSTOM = "enterprise_custom"
 
 
 class PlanStatus(str, enum.Enum):
@@ -44,6 +47,9 @@ class User(Base):
     lgpd_consent_ip = Column(String, nullable=True)
     cpf_cnpj = Column(String, nullable=True, unique=True)
     deleted_at = Column(DateTime, nullable=True)
+    is_onboarding = Column(Boolean, default=True)
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
+    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
 
 
 class RouteOptimizationType(str, enum.Enum):
@@ -111,6 +117,44 @@ class ProcessedWebhook(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Partner(Base):
+    __tablename__ = "partners"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    contact_email = Column(String, nullable=True)
+    commission_balance = Column(Numeric(12, 2), default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, nullable=False)
+    partner_id = Column(Integer, ForeignKey("partners.id", ondelete="SET NULL"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    plan = Column(String, nullable=False)
+    amount_paid = Column(Numeric(12, 2), nullable=False)
+    full_price = Column(Numeric(12, 2), nullable=False)
+    commission_amount = Column(Numeric(12, 2), default=0)
+    coupon_used = Column(Boolean, default=False)
+    coupon_id = Column(Integer, nullable=True)
+    partner_id = Column(Integer, nullable=True, index=True)
+    asaas_payment_id = Column(String, unique=True, nullable=False)
+    event_type = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def get_db_url(settings):
     return settings.resolved_database_url
 
@@ -121,7 +165,7 @@ def get_engine(settings):
         pool_pre_ping=True,
         pool_size=3,
         max_overflow=2,
-        pool_recycle=3600,  # Recycle connections every hour (Neon disconnects idle)
+        pool_recycle=3600,
     )
 
 

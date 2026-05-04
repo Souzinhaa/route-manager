@@ -8,14 +8,14 @@ logger = logging.getLogger(__name__)
 _SANDBOX_URL = "https://sandbox.asaas.com/api/v3"
 _PROD_URL = "https://api.asaas.com/v3"
 
-PLAN_LIMITS = {
-    "tester":     {"routes_per_day": 1,  "max_waypoints": 50,   "price": 0.0,   "name": "Tester"},
-    "basic":      {"routes_per_day": 1,  "max_waypoints": 100,  "price": 39.0,  "name": "Basic"},
-    "starter":    {"routes_per_day": 3,  "max_waypoints": 100,  "price": 89.0,  "name": "Starter"},
-    "delivery":   {"routes_per_day": 5,  "max_waypoints": 150,  "price": 149.0, "name": "Delivery"},
-    "premium":    {"routes_per_day": 10, "max_waypoints": 200,  "price": 299.0, "name": "Premium"},
-    "enterprise": {"routes_per_day": -1, "max_waypoints": -1,   "price": 0.0,   "name": "Enterprise"},
-}
+def _build_compat_limits():
+    from app.services import pricing
+    result = {}
+    for k, v in pricing.PLANS.items():
+        result[k] = {"routes_per_day": v["routes_per_day"], "max_waypoints": v["max_stops"], "price": float(v["price_full"]), "name": v["name"]}
+    return result
+
+PLAN_LIMITS = _build_compat_limits()
 
 
 class AsaasService:
@@ -96,3 +96,6 @@ class AsaasService:
         except Exception as exc:
             logger.warning("Could not fetch payment URL for %s: %s", subscription_id, exc)
         return None
+
+    def update_subscription(self, subscription_id: str, value: float) -> dict:
+        return self._post(f"/subscriptions/{subscription_id}", {"value": value})

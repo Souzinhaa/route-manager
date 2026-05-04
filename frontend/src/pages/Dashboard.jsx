@@ -218,12 +218,15 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
 }
 
 const PLAN_LIMITS = {
-  tester:   { routes_per_day: 1,  max_waypoints: 50,  name: 'Trial' },
-  basic:    { routes_per_day: 1,  max_waypoints: 100, name: 'Basic' },
-  starter:  { routes_per_day: 3,  max_waypoints: 100, name: 'Starter' },
-  delivery: { routes_per_day: 5,  max_waypoints: 150, name: 'Delivery' },
-  premium:  { routes_per_day: 10, max_waypoints: 200, name: 'Premium' },
-  enterprise: { routes_per_day: -1, max_waypoints: -1, name: 'Enterprise' },
+  tester:              { routes_per_day: 1,   max_waypoints: 50,  name: 'Trial' },
+  basic:               { routes_per_day: 1,   max_waypoints: 100, name: 'Basic' },
+  starter:             { routes_per_day: 3,   max_waypoints: 100, name: 'Starter' },
+  delivery:            { routes_per_day: 5,   max_waypoints: 150, name: 'Delivery' },
+  premium:             { routes_per_day: 10,  max_waypoints: 200, name: 'Premium' },
+  enterprise:          { routes_per_day: -1,  max_waypoints: -1,  name: 'Enterprise' },
+  enterprise_medio:    { routes_per_day: 50,  max_waypoints: 300, name: 'Enterprise Médio' },
+  enterprise_avancado: { routes_per_day: 100, max_waypoints: 400, name: 'Enterprise Avançado' },
+  enterprise_custom:   { routes_per_day: -1,  max_waypoints: -1,  name: 'Enterprise Custom' },
 }
 
 function PlanWidget({ user, todayRoutes }) {

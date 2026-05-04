@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { adminService } from '../services/api'
+import Partners from './admin/Partners'
+import Coupons from './admin/Coupons'
+import Transactions from './admin/Transactions'
 
 function ChangePasswordSection() {
   const [newPassword, setNewPassword] = useState('')
@@ -145,6 +148,7 @@ function UserEditModal({ user, onClose, onSaved }) {
 }
 
 function Admin() {
+  const [tab, setTab] = useState('users')
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
@@ -197,13 +201,34 @@ function Admin() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem 1.5rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ fontSize: '0.75rem', color: 'var(--primary-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
           Admin
         </div>
         <h1 style={{ color: 'var(--text-1)', fontSize: '1.8rem', fontWeight: 800, marginBottom: 4 }}>Painel Administrativo</h1>
         <p style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>Gerencie usuários, planos e assinaturas.</p>
       </div>
+
+      {/* Tab nav */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {[['users', 'Usuários'], ['partners', 'Parceiros'], ['coupons', 'Cupons'], ['transactions', 'Transações']].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{ padding: '0.6rem 1rem', background: 'transparent', border: 'none', borderBottom: tab === key ? '2px solid var(--primary)' : '2px solid transparent', color: tab === key ? 'var(--text-1)' : 'var(--text-2)', cursor: 'pointer', fontWeight: tab === key ? 700 : 400, fontSize: '0.9rem', marginBottom: -1, transition: 'color 0.15s' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'partners' && <Partners />}
+      {tab === 'coupons' && <Coupons />}
+      {tab === 'transactions' && <Transactions />}
+      {tab !== 'users' && null}
+      {tab === 'users' && <>
+
 
       {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '0.9rem 1.25rem', color: '#f87171', marginBottom: '1.5rem' }}>{error}</div>}
 
@@ -219,6 +244,7 @@ function Admin() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
             <StatCard label="MRR (R$)" value={`R$ ${(stats.mrr || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} color="#a78bfa" />
+            <StatCard label="Comissões devidas" value={`R$ ${(stats.commission_owed_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} color="#f59e0b" />
             <StatCard label="Total rotas" value={stats.total_routes} />
             <StatCard label="Rotas hoje" value={stats.routes_today} color="#f59e0b" />
           </div>
@@ -355,6 +381,7 @@ function Admin() {
       )}
 
       <ChangePasswordSection />
+      </>}
     </div>
   )
 }

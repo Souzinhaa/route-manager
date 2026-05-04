@@ -159,21 +159,24 @@ const PRICING_PREVIEW = [
   {
     key: 'basic',
     name: 'Basic',
-    price: 39,
+    price_onboarding: 39,
+    price_full: 49,
     features: ['1 rota por dia', 'Até 100 paradas', 'Importação NFe', 'CEP automático', 'Histórico de rotas'],
     popular: false,
   },
   {
     key: 'delivery',
     name: 'Delivery',
-    price: 149,
+    price_onboarding: 149,
+    price_full: 179,
     features: ['5 rotas por dia', 'Até 150 paradas', 'Importação NFe', 'CEP automático', 'Multi-veículo'],
     popular: true,
   },
   {
     key: 'premium',
     name: 'Premium',
-    price: 299,
+    price_onboarding: 299,
+    price_full: 349,
     features: ['10 rotas por dia', 'Até 200 paradas', 'Importação NFe', 'Suporte prioritário', 'Multi-veículo'],
     popular: false,
   },
@@ -409,8 +412,11 @@ function Home() {
                 <div className="price-plan-name">{plan.name}</div>
                 <div className="price-plan-amount">
                   <span className="price-plan-currency">R$</span>
-                  <span className="price-plan-value">{plan.price}</span>
-                  <span className="price-plan-period">/mês</span>
+                  <span className="price-plan-value">{plan.price_onboarding}</span>
+                  <span className="price-plan-period">/1º mês</span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-2)', marginBottom: 4 }}>
+                  depois R$ {plan.price_full}/mês
                 </div>
                 <ul className="price-plan-features">
                   {plan.features.map((f, i) => (

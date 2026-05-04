@@ -21,6 +21,51 @@ _USER_COLUMNS = [
         "created_at TIMESTAMP DEFAULT NOW()"
         ")"
     ),
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_onboarding BOOLEAN DEFAULT TRUE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS coupon_id INTEGER",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_id INTEGER",
+    (
+        "CREATE TABLE IF NOT EXISTS partners ("
+        "id SERIAL PRIMARY KEY, "
+        "name VARCHAR NOT NULL, "
+        "contact_email VARCHAR, "
+        "commission_balance NUMERIC(12,2) DEFAULT 0, "
+        "is_active BOOLEAN DEFAULT TRUE, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    (
+        "CREATE TABLE IF NOT EXISTS coupons ("
+        "id SERIAL PRIMARY KEY, "
+        "code VARCHAR UNIQUE NOT NULL, "
+        "partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL, "
+        "is_active BOOLEAN DEFAULT TRUE, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    (
+        "CREATE TABLE IF NOT EXISTS transactions ("
+        "id SERIAL PRIMARY KEY, "
+        "user_id INTEGER NOT NULL, "
+        "plan VARCHAR NOT NULL, "
+        "amount_paid NUMERIC(12,2) NOT NULL, "
+        "full_price NUMERIC(12,2) NOT NULL, "
+        "commission_amount NUMERIC(12,2) DEFAULT 0, "
+        "coupon_used BOOLEAN DEFAULT FALSE, "
+        "coupon_id INTEGER, "
+        "partner_id INTEGER, "
+        "asaas_payment_id VARCHAR UNIQUE NOT NULL, "
+        "event_type VARCHAR NOT NULL, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    "CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_transactions_partner ON transactions(partner_id)",
+    (
+        "UPDATE users SET is_onboarding = FALSE "
+        "WHERE is_onboarding = TRUE "
+        "AND (plan_status = 'active' OR subscription_id IS NOT NULL)"
+    ),
 ]
 
 

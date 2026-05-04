@@ -22,7 +22,7 @@ from app.models.schemas import (
     RouteResponse,
     UploadResponse,
 )
-from app.services.asaas import PLAN_LIMITS
+from app.services import pricing
 from app.services.geocoding import GeocodingService
 from app.services.nfe_parser import NFEParser
 from app.services.ortools_service import OrToolsService
@@ -47,7 +47,10 @@ def _check_plan_access(user: User, num_waypoints: int, db: Session) -> None:
             detail="Assinatura inativa. Atualize seu pagamento.",
         )
 
-    limits = PLAN_LIMITS.get(plan_key, PLAN_LIMITS["tester"])
+    try:
+        limits = pricing.plan_limits(plan_key)
+    except KeyError:
+        limits = pricing.plan_limits("tester")
 
     max_wp = limits["max_waypoints"]
     if max_wp != -1 and num_waypoints > max_wp:

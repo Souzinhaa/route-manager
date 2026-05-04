@@ -14,6 +14,7 @@ function Register({ setUser }) {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const targetPlan = params.get('plan')
+  const targetCoupon = params.get('coupon')
 
   const formatCpfCnpj = (v) => {
     const d = v.replace(/\D/g, '').slice(0, 14)
@@ -63,11 +64,12 @@ function Register({ setUser }) {
     const digits = cpfCnpj.replace(/\D/g, '')
     try {
       await authService.register(email, password, fullName, digits, true)
-      // Auto-login após registrar para salvar token e user no App state
       const loginRes = await authService.login(email, password)
       setToken(loginRes.data.access_token)
       setUser(loginRes.data.user)
-      navigate('/plans?welcome=1')
+      if (targetCoupon) localStorage.setItem('pending_coupon', targetCoupon)
+      const couponParam = targetCoupon ? `&coupon=${encodeURIComponent(targetCoupon)}` : ''
+      navigate(`/plans?welcome=1${couponParam}`)
     } catch (err) {
       const detail = err.response?.data?.detail
       setError(

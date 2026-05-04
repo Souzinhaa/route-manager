@@ -26,12 +26,15 @@ function PaymentWallGuard({ user, onDowngrade }) {
 }
 
 const PLAN_LIMITS = {
-  tester:     { routes_per_day: 1 },
-  basic:      { routes_per_day: 1 },
-  starter:    { routes_per_day: 3 },
-  delivery:   { routes_per_day: 5 },
-  premium:    { routes_per_day: 10 },
-  enterprise: { routes_per_day: -1 },
+  tester:              { routes_per_day: 1 },
+  basic:               { routes_per_day: 1 },
+  starter:             { routes_per_day: 3 },
+  delivery:            { routes_per_day: 5 },
+  premium:             { routes_per_day: 10 },
+  enterprise:          { routes_per_day: -1 },
+  enterprise_medio:    { routes_per_day: 50 },
+  enterprise_avancado: { routes_per_day: 100 },
+  enterprise_custom:   { routes_per_day: -1 },
 }
 
 function RoutesRemainingBadge({ user }) {
@@ -70,6 +73,12 @@ function App() {
     setNavOpen(false)
   }, [])
 
+  const handleDowngrade = useCallback(() => {
+    authService.getCurrentUser()
+      .then(res => setUser(res.data))
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     authService.getCurrentUser()
       .then(res => setUser(res.data))
@@ -87,12 +96,6 @@ function App() {
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>
   }
-
-  const handleDowngrade = useCallback(() => {
-    authService.getCurrentUser()
-      .then(res => setUser(res.data))
-      .catch(() => {})
-  }, [])
 
   return (
     <ErrorBoundary>
