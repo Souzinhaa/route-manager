@@ -6,15 +6,13 @@
 #   (everything else). One container, one port, one Dockerfile at repo root.
 #
 # Networking strategy
-#   Deploy Manager creates project-scoped network where Docker service-name
-#   DNS is unreliable. Solution: expose db on host port, give app an
-#   "host.docker.internal" alias (host-gateway) so it connects through the
-#   host's port-mapping instead of relying on Docker-internal DNS.
+#   Custom bridge network isolates containers. App connects to db via service
+#   name (Docker DNS). No need for host.docker.internal.
 #
 # Env strategy
-#   Deploy Manager passes envs via execSync `env` option. ${VAR:-default}
-#   provides fallback at compose-parse time. Backend entrypoint rebuilds
-#   DATABASE_URL from components as belt-and-suspenders.
+#   Source from .env file at runtime: `docker-compose --env-file .env up`
+#   Or set vars: `export POSTGRES_PASSWORD=xxx && docker-compose up`
+#   ${VAR:-default} provides fallback at compose-parse time.
 #
 # Memory budget (~2 GB)
 #   OS + Docker daemon  ≈ 400 MB
@@ -49,11 +47,11 @@ services:
         -c random_page_cost=1.1
         -c effective_io_concurrency=1
         -c log_min_duration_statement=2000
-    ports:
-      - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+    networks:
+      - app-network
     deploy:
       resources:
         limits:
@@ -67,7 +65,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # # ── FastAPI + SPA ──────────────────────────────────────────────────────────
+  # ── FastAPI + SPA ─────────────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -76,15 +74,10 @@ services:
     image: route_manager:local
     container_name: route_app
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # DATABASE_URL set explicitly here AND rebuilt by entrypoint as a
-      # double-belt: pydantic-settings reads env vars first, so this value
-      # wins over the localhost default in app/config.py.
       DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/route_manager
       DB_HOST: db
       DB_PORT: 5432
@@ -97,16 +90,18 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       UPLOAD_DIR: /app/uploads
       PORT: 8000
-      WEB_WORKERS: ${WEB_WORKERS:-1}
+      WEB_WORKERS: ${WEB_WORKERS:-2}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
       MAX_WAYPOINTS: ${MAX_WAYPOINTS:-198}
       AVG_SPEED_KMH: ${AVG_SPEED_KMH:-50}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CORS_ORIGINS: ${CORS_ORIGINS:-localhost:5173}
     ports:
       - "8010:8000"
     volumes:
       - uploads_data:/app/uploads
+    networks:
+      - app-network
     deploy:
       resources:
         limits:
@@ -123,3 +118,7 @@ services:
 volumes:
   db_data:
   uploads_data:
+
+networks:
+  app-network:
+    driver: bridge
