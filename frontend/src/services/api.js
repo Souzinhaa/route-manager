@@ -94,6 +94,9 @@ export const adminService = {
   getUserCosts: (params) => api.get('/admin/user-costs', { params }),
   getPlans: () => api.get('/admin/plans'),
   updatePlan: (key, data) => api.patch(`/admin/plans/${key}`, data),
+  getPayoutConfig: () => api.get('/admin/payout-config'),
+  updatePayoutConfig: (data) => api.patch('/admin/payout-config', data),
+  triggerPayouts: () => api.post('/admin/trigger-payouts'),
 }
 
 export const billingService = {
@@ -112,6 +115,8 @@ export const adminBillingService = {
   createPartner: (data) => api.post('/admin/partners', data),
   getPartner: (id) => api.get(`/admin/partners/${id}`),
   withdrawCommission: (id, amount) => api.post(`/admin/partners/${id}/withdraw`, { amount }),
+  pixPayoutPartner: (id) => api.post(`/admin/partners/${id}/pix-payout`),
+  updatePartner: (id, data) => api.patch(`/admin/partners/${id}`, data),
   getCoupons: () => api.get('/admin/coupons'),
   createCoupon: (data) => api.post('/admin/coupons', data),
   toggleCoupon: (id) => api.patch(`/admin/coupons/${id}`),
