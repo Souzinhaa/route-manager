@@ -18,11 +18,11 @@
   --warning: #FBBF24;
 
   /* Surfaces — true layered depth */
-  --bg: #0A0D14;
-  --bg-2: #0E1119;
-  --surface: #12161F;
-  --surface-2: #161B26;
-  --surface-3: #1D212E;
+  --bg: #0a0a0a;
+  --bg-2: #0f0f0f;
+  --surface: #131313;
+  --surface-2: #171717;
+  --surface-3: #1e1e1e;
   --border: #232936;
   --border-bright: #2E3542;
   --border-glow: rgba(31, 95, 71, .3);
@@ -34,10 +34,10 @@
   --text-muted: #5A6488;
 
   /* Compat for inline var() in pages */
-  --gray-50: #11162B;
-  --gray-100: #161D38;
-  --gray-200: #1F2847;
-  --gray-300: #2D3866;
+  --gray-50: #131313;
+  --gray-100: #171717;
+  --gray-200: #1f1f1f;
+  --gray-300: #2d2d2d;
   --gray-400: #5A6488;
   --gray-500: #8B95B5;
   --gray-600: #C7D0E5;
@@ -1934,7 +1934,7 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
    COMPAT ALIASES (used by Plans, Register)
 ───────────────────────────────────────── */
 :root {
-  --card: #11162B;   /* == --surface */
+  --card: #131313;   /* == --surface */
   --text-1: #F1F5FF; /* == --text */
 }
 
