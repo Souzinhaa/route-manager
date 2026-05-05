@@ -580,11 +580,7 @@ function Dashboard({ user, setUser }) {
         Configure paradas, prioridades e veículo para calcular a melhor rota.
       </div>
 
-      <PlanWidget user={user} todayRoutes={routes.filter(r => {
-        const d = new Date(r.created_at)
-        const today = new Date()
-        return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
-      }).length} />
+      <PlanWidget user={user} todayRoutes={user?.routes_used_today ?? 0} />
 
       <div className="grid-2">
         {/* ── Form card ── */}
