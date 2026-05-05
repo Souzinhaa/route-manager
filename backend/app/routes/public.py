@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,12 +12,7 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 
 
 @router.get("/routes/{share_token}", response_model=SharedRouteView)
-async def get_shared_route(share_token: str, db: Session = None):
-    """Get a shared route by token (no authentication required)."""
-    if db is None:
-        from app.deps import SessionLocal
-        db = SessionLocal()
-
+async def get_shared_route(share_token: str, db: Session = Depends(get_db)):
     stmt = select(SharedRoute).where(SharedRoute.share_token == share_token)
     shared = db.execute(stmt).scalars().first()
 

@@ -97,11 +97,12 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
   }
 
   const handleShare = async () => {
-    if (!route || !route.id) return
+    const routeId = route?.route_id || route?.id
+    if (!route || !routeId) return
     try {
       setSharing(true)
       setShareError(null)
-      const res = await routeService.shareRoute(route.id)
+      const res = await routeService.shareRoute(routeId)
       if (res.data?.share_token) {
         setShareToken(res.data.share_token)
       }

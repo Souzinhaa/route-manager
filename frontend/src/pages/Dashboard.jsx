@@ -479,7 +479,7 @@ function Dashboard({ user, setUser }) {
   const loadRoutes = async () => {
     try {
       const res = await routeService.getHistory()
-      setRoutes(res.data)
+      setRoutes(Array.isArray(res.data) ? res.data : [])
     } catch (_) {}
   }
 
