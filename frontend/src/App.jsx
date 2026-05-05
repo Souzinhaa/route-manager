@@ -4,6 +4,7 @@ import { authService } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlanBanner from './components/PlanBanner'
 import PaymentWallModal, { getBlockReason } from './components/PaymentWallModal'
+import rmLogo from '../assets/rm-logo.png'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -123,7 +124,7 @@ function App() {
           <header className="header">
             <div className="header-inner">
               <Link to={user ? '/dashboard' : '/'} className="header-logo" onClick={closeNav}>
-                <img src="/assets/rm-logo.png" alt="Routerizador" className="header-logo-icon" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                <img src={rmLogo} alt="Routerizador" className="header-logo-icon" />
                 <span className="header-logo-text">Roteiri<span>zador</span></span>
               </Link>
 

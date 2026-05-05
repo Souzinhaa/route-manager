@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { authService, setToken } from '../services/api'
+import rmLogo from '../../assets/rm-logo.png'
 
 function Register({ setUser }) {
   const [email, setEmail] = useState('')
@@ -86,7 +87,7 @@ function Register({ setUser }) {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <img src="/assets/rm-logo.png" alt="Routerizador" className="auth-logo-icon" />
+          <img src={rmLogo} alt="Routerizador" className="auth-logo-icon" />
           <h1 className="auth-title">Criar conta grátis</h1>
           <p className="auth-subtitle">
             {targetPlan

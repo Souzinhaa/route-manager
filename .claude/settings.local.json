@@ -14,7 +14,8 @@
       "Bash(git add *)",
       "Bash(python3 scripts/search.py \"logistics saas dark theme green teal professional\" --design-system -p \"Route Manager\" -f markdown)",
       "PowerShell(python --version)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(public\")"
     ]
   }
 }
