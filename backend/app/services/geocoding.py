@@ -54,7 +54,6 @@ class GeocodingService:
                     "address": query,
                     "key": self.api_key,
                     "region": "br",
-                    "components": "country:BR",
                 },
                 timeout=5,
             )
