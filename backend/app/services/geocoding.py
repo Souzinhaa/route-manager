@@ -50,7 +50,12 @@ class GeocodingService:
         try:
             response = requests.get(
                 self.BASE_URL,
-                params={"address": query, "key": self.api_key},
+                params={
+                    "address": query,
+                    "key": self.api_key,
+                    "region": "br",
+                    "components": "country:BR",
+                },
                 timeout=5,
             )
             response.raise_for_status()

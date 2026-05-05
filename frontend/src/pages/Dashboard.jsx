@@ -437,6 +437,9 @@ function Dashboard({ user, setUser }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [waypointShake, setWaypointShake] = useState(false)
+  const [wpSuggestions, setWpSuggestions] = useState([])
+  const [wpShowSuggestions, setWpShowSuggestions] = useState(false)
+  const [wpAutocompleteLoading, setWpAutocompleteLoading] = useState(false)
   const nfeInputRef = useRef()
   const navigate = useNavigate()
 
@@ -824,21 +827,82 @@ function Dashboard({ user, setUser }) {
             )}
 
             {!atWaypointLimit && (
-              <div className="waypoint-input-row" style={{ marginTop: 8 }}>
-                <input
-                  type="text"
-                  value={currentWaypoint}
-                  onChange={e => setCurrentWaypoint(e.target.value)}
-                  onKeyDown={async e => {
-                    if (e.key !== 'Enter') return
-                    e.preventDefault()
+              <div style={{ marginTop: 8, position: 'relative' }}>
+                <div className="waypoint-input-row">
+                  <input
+                    type="text"
+                    value={currentWaypoint}
+                    onChange={async e => {
+                      const val = e.target.value
+                      setCurrentWaypoint(val)
+                      if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+                        setWpAutocompleteLoading(true)
+                        setWpShowSuggestions(true)
+                        try {
+                          const res = await routeService.autocompleteAddress(val)
+                          setWpSuggestions(res.data || [])
+                        } catch (_) {
+                          setWpSuggestions([])
+                        } finally {
+                          setWpAutocompleteLoading(false)
+                        }
+                      } else {
+                        setWpSuggestions([])
+                        setWpShowSuggestions(false)
+                      }
+                    }}
+                    onKeyDown={async e => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      setWpSuggestions([])
+                      setWpShowSuggestions(false)
+                      addWaypoint()
+                    }}
+                    onFocus={() => wpSuggestions.length > 0 && setWpShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setWpShowSuggestions(false), 200)}
+                    placeholder="CEP ou endereço + Enter"
+                  />
+                  <button type="button" className="btn-secondary" onClick={() => {
+                    setWpSuggestions([])
+                    setWpShowSuggestions(false)
                     addWaypoint()
-                  }}
-                  placeholder="CEP ou endereço + Enter"
-                />
-                <button type="button" className="btn-secondary" onClick={addWaypoint}>
-                  + Adicionar
-                </button>
+                  }}>
+                    + Adicionar
+                  </button>
+                </div>
+                {wpShowSuggestions && (wpSuggestions.length > 0 || wpAutocompleteLoading) && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+                    borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 200, overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}>
+                    {wpAutocompleteLoading ? (
+                      <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.85rem' }}>
+                        Buscando...
+                      </div>
+                    ) : (
+                      wpSuggestions.map((sugg, i) => (
+                        <div
+                          key={i}
+                          onMouseDown={() => {
+                            setCurrentWaypoint(sugg.address)
+                            setWpSuggestions([])
+                            setWpShowSuggestions(false)
+                          }}
+                          style={{
+                            padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                            color: 'var(--text-1)', fontSize: '0.85rem', transition: 'background 0.1s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          {sugg.address}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
