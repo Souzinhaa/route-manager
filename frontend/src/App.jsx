@@ -47,6 +47,14 @@ const PLAN_LIMITS = {
 }
 
 function RoutesRemainingBadge({ user }) {
+  if (user?.is_admin) {
+    return (
+      <span style={{ fontSize: '0.75rem', color: 'var(--text-2)' }}>
+        rotas: <strong style={{ color: '#34d399' }}>∞</strong>
+      </span>
+    )
+  }
+
   const plan = user?.plan || 'tester'
   const limit = PLAN_LIMITS[plan]?.routes_per_day ?? 1
   const used = user?.routes_used_today ?? 0

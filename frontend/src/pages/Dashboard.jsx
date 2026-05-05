@@ -365,6 +365,7 @@ const PLAN_LIMITS = {
 
 function PlanWidget({ user, todayRoutes }) {
   if (!user) return null
+  if (user.is_admin) return null
   const plan = user.plan || 'tester'
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.tester
   const isUnlimited = limits.routes_per_day === -1
@@ -454,7 +455,7 @@ function Dashboard({ user, setUser }) {
   }, [startAddress, sameEndAsStart])
 
   const planKey = (user?.plan || 'tester').toLowerCase()
-  const waypointLimit = PLAN_LIMITS[planKey]?.max_waypoints ?? 50
+  const waypointLimit = user?.is_admin ? -1 : (PLAN_LIMITS[planKey]?.max_waypoints ?? 50)
   const isWaypointUnlimited = waypointLimit === -1
   const atWaypointLimit = !isWaypointUnlimited && waypoints.length >= waypointLimit
 
