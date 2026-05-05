@@ -50,6 +50,7 @@ function AddressField({ label, value, onChange, placeholder }) {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
+  const numberInputRef = useRef(null)
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
@@ -104,6 +105,7 @@ function AddressField({ label, value, onChange, placeholder }) {
     onChange(address)
     setSuggestions([])
     setShowSuggestions(false)
+    setTimeout(() => numberInputRef.current?.focus(), 0)
   }
 
   return (
@@ -120,6 +122,7 @@ function AddressField({ label, value, onChange, placeholder }) {
           maxLength={9}
         />
         <input
+          ref={numberInputRef}
           type="text"
           value={number}
           onChange={handleNumberChange}
@@ -182,7 +185,7 @@ function AddressField({ label, value, onChange, placeholder }) {
 }
 
 /* ── Single waypoint row ── */
-function WaypointRow({ wp, index, onChange, onRemove }) {
+function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [cep, setCep] = useState('')
   const [number, setNumber] = useState('')
   const [cepData, setCepData] = useState(null)
@@ -244,6 +247,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
     onChange({ ...wp, address })
     setSuggestions([])
     setShowSuggestions(false)
+    setTimeout(() => numberInputRef?.current?.focus(), 0)
   }
 
   return (
@@ -261,6 +265,7 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
           maxLength={9}
         />
         <input
+          ref={numberInputRef}
           type="text"
           value={number}
           onChange={handleNumberChange}
@@ -440,6 +445,7 @@ function Dashboard({ user, setUser }) {
   const [wpSuggestions, setWpSuggestions] = useState([])
   const [wpShowSuggestions, setWpShowSuggestions] = useState(false)
   const [wpAutocompleteLoading, setWpAutocompleteLoading] = useState(false)
+  const lastWaypointNumberRef = useRef()
   const nfeInputRef = useRef()
   const navigate = useNavigate()
 
@@ -477,14 +483,16 @@ function Dashboard({ user, setUser }) {
     } catch (_) {}
   }
 
-  const addWaypoint = async () => {
-    const val = currentWaypoint.trim()
+  const addWaypoint = async (customAddress = null) => {
+    const val = (customAddress || currentWaypoint).trim()
     if (!val) return
     if (atWaypointLimit) { triggerShake(); return }
-    const addr = await resolveAddress(val)
+    const addr = customAddress ? val : await resolveAddress(val)
     if (!isWaypointUnlimited && waypoints.length >= waypointLimit) { triggerShake(); return }
     setWaypoints(prev => [...prev, { address: addr, priority: 0 }])
     setCurrentWaypoint('')
+    // Focus number input of newly added waypoint
+    setTimeout(() => lastWaypointNumberRef.current?.focus(), 0)
   }
 
   const updateWaypoint = (i, updated) =>
@@ -810,6 +818,7 @@ function Dashboard({ user, setUser }) {
                 index={i}
                 onChange={updated => updateWaypoint(i, updated)}
                 onRemove={() => removeWaypoint(i)}
+                numberInputRef={i === waypoints.length - 1 ? lastWaypointNumberRef : null}
               />
             ))}
 
@@ -886,9 +895,9 @@ function Dashboard({ user, setUser }) {
                         <div
                           key={i}
                           onMouseDown={() => {
-                            setCurrentWaypoint(sugg.address)
                             setWpSuggestions([])
                             setWpShowSuggestions(false)
+                            addWaypoint(sugg.address)
                           }}
                           style={{
                             padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
