@@ -161,22 +161,18 @@ body::before {
 .header-logo-icon {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent-deep) 100%);
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 4px 12px var(--primary-glow);
-  position: relative;
-  overflow: hidden;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(31, 95, 71, .2));
+  transition: filter .2s var(--ease);
 }
 
-.header-logo-icon::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.2), transparent 60%);
+.header-logo:hover .header-logo-icon {
+  filter: drop-shadow(0 4px 8px rgba(31, 95, 71, .35));
 }
 
 .header-logo-text {
@@ -1095,27 +1091,20 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 .auth-logo-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent-deep) 100%);
-  border-radius: var(--radius);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.4rem;
+  border-radius: 6px;
+  display: inline-block;
   margin-bottom: 14px;
-  box-shadow: 0 8px 24px var(--primary-glow), 0 0 0 1px rgba(255,255,255,.06);
-  position: relative;
-  overflow: hidden;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(31, 95, 71, .25));
+  transition: filter .2s var(--ease);
 }
 
 @media (min-width: 480px) {
-  .auth-logo-icon { width: 56px; height: 56px; font-size: 1.6rem; margin-bottom: 18px; }
+  .auth-logo-icon { width: 56px; height: 56px; margin-bottom: 18px; }
 }
 
-.auth-logo-icon::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.2), transparent 60%);
+.auth-logo:hover .auth-logo-icon {
+  filter: drop-shadow(0 8px 20px rgba(31, 95, 71, .35));
 }
 
 .auth-title { font-size: clamp(1.2rem, 5vw, 1.5rem); font-weight: 700; color: var(--text); margin-bottom: 6px; letter-spacing: -0.03em; }

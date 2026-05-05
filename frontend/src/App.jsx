@@ -123,13 +123,7 @@ function App() {
           <header className="header">
             <div className="header-inner">
               <Link to={user ? '/dashboard' : '/'} className="header-logo" onClick={closeNav}>
-                <span className="header-logo-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="6" cy="6" r="2" fill="white"/>
-                    <circle cx="18" cy="18" r="2" fill="white"/>
-                    <path d="M6 6 L12 12 L18 18" strokeDasharray="3 2"/>
-                  </svg>
-                </span>
+                <img src="/assets/rm-logo.png" alt="Routerizador" className="header-logo-icon" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
                 <span className="header-logo-text">Roteiri<span>zador</span></span>
               </Link>
 
