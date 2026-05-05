@@ -92,6 +92,8 @@ export const adminService = {
   deleteRoute: (userId, routeId) => api.delete(`/admin/users/${userId}/routes/${routeId}`),
   changePassword: (newPassword) => api.post('/admin/change-password', { new_password: newPassword }),
   getUserCosts: (params) => api.get('/admin/user-costs', { params }),
+  getPlans: () => api.get('/admin/plans'),
+  updatePlan: (key, data) => api.patch(`/admin/plans/${key}`, data),
 }
 
 export const billingService = {
@@ -114,6 +116,10 @@ export const adminBillingService = {
   createCoupon: (data) => api.post('/admin/coupons', data),
   toggleCoupon: (id) => api.patch(`/admin/coupons/${id}`),
   getTransactions: (params) => api.get('/admin/transactions', { params }),
+}
+
+export const partnerService = {
+  getPortal: (token) => api.get(`/partner/portal/${token}`),
 }
 
 export default api

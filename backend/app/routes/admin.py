@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import date, datetime
 from typing import List, Optional
 
@@ -8,20 +9,70 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.deps import get_admin_user, get_db, get_routes_used_today
-from app.models.db import Coupon, DailyUsage, Partner, Route, Transaction, User
+from app.models.db import Coupon, DailyUsage, Partner, PayoutConfig, PlanConfig, Route, Transaction, User
 from app.models.schemas import (
     AdminUserPatch,
     CouponCreate,
     CouponResponse,
     PartnerCreate,
+    PartnerPatch,
     PartnerResponse,
+    PayoutConfigPatch,
+    PayoutConfigResponse,
+    PlanConfigPatch,
+    PlanConfigResponse,
     TransactionResponse,
     UserResponse,
 )
 from app.services import pricing
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _detect_pix_key_type(key: str) -> str:
+    digits = "".join(c for c in key if c.isdigit())
+    if "@" in key:
+        return "EMAIL"
+    if key.startswith("+") and len(digits) >= 10:
+        return "PHONE"
+    if len(digits) == 11 and key == digits:
+        return "CPF"
+    if len(digits) == 14 and key == digits:
+        return "CNPJ"
+    return "EVP"
+
+
+async def _execute_partner_payout(partner: Partner, db: Session, settings) -> dict:
+    """Execute PIX transfer for a single partner. Returns result dict."""
+    balance = float(partner.commission_balance or 0)
+    if balance <= 0:
+        return {"partner_id": partner.id, "skipped": True, "reason": "sem saldo"}
+    if not partner.pix_key:
+        return {"partner_id": partner.id, "skipped": True, "reason": "sem chave pix"}
+    if not settings.asaas_api_key:
+        return {"partner_id": partner.id, "skipped": True, "reason": "asaas não configurado"}
+
+    from app.services.asaas import AsaasService
+    import asyncio
+    asaas = AsaasService(settings.asaas_api_key, sandbox=settings.asaas_sandbox)
+    try:
+        result = await asyncio.to_thread(
+            asaas.create_pix_transfer,
+            partner.pix_key,
+            partner.pix_key_type or _detect_pix_key_type(partner.pix_key),
+            balance,
+            f"Comissão Route Manager — {partner.name}",
+        )
+        partner.commission_balance = 0
+        db.commit()
+        logger.info("PIX payout R$%.2f sent to partner %s (%s)", balance, partner.name, partner.pix_key)
+        return {"partner_id": partner.id, "amount": balance, "transfer_id": result.get("id")}
+    except Exception as exc:
+        db.rollback()
+        logger.exception("PIX payout failed for partner %s: %s", partner.id, exc)
+        return {"partner_id": partner.id, "skipped": True, "reason": str(exc)}
 
 
 class ChangePasswordRequest(BaseModel):
@@ -230,7 +281,16 @@ async def create_partner(
     _admin: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ):
-    partner = Partner(name=body.name, contact_email=body.contact_email)
+    pix_key_type = _detect_pix_key_type(body.pix_key) if body.pix_key else None
+    partner = Partner(
+        name=body.name,
+        contact_email=body.contact_email,
+        phone=body.phone,
+        cpf_cnpj=body.cpf_cnpj,
+        pix_key=body.pix_key,
+        pix_key_type=pix_key_type,
+        access_token=secrets.token_urlsafe(32),
+    )
     db.add(partner)
     try:
         db.commit()
@@ -239,6 +299,31 @@ async def create_partner(
         db.rollback()
         logger.exception("Create partner failed: %s", exc)
         raise HTTPException(status_code=500, detail="Could not create partner")
+    return PartnerResponse.model_validate(partner)
+
+
+@router.patch("/partners/{partner_id}", response_model=PartnerResponse)
+async def update_partner(
+    partner_id: int,
+    body: PartnerPatch,
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    partner = db.execute(select(Partner).where(Partner.id == partner_id)).scalars().first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    for field, val in body.model_dump(exclude_unset=True).items():
+        if field == "pix_key" and val is not None:
+            partner.pix_key = val
+            partner.pix_key_type = _detect_pix_key_type(val)
+        else:
+            setattr(partner, field, val)
+    try:
+        db.commit()
+        db.refresh(partner)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Could not update partner")
     return PartnerResponse.model_validate(partner)
 
 
@@ -259,6 +344,22 @@ async def get_partner(
     data = PartnerResponse.model_validate(partner).model_dump()
     data["users"] = [{"id": u.id, "email": u.email, "plan": u.plan} for u in users]
     return data
+
+
+@router.post("/partners/{partner_id}/pix-payout")
+async def pix_payout_partner(
+    partner_id: int,
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+    settings=Depends(get_settings),
+):
+    partner = db.execute(select(Partner).where(Partner.id == partner_id)).scalars().first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    result = await _execute_partner_payout(partner, db, settings)
+    if result.get("skipped"):
+        raise HTTPException(status_code=400, detail=result["reason"])
+    return result
 
 
 @router.post("/partners/{partner_id}/withdraw", status_code=status.HTTP_204_NO_CONTENT)
@@ -369,6 +470,155 @@ async def get_user_costs(
         }
         for r in rows
     ]
+
+
+# ── Plan Configs ──────────────────────────────────────────────────────────────
+
+@router.get("/plans", response_model=List[PlanConfigResponse])
+async def list_plan_configs(
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    result = []
+    for key, defaults in pricing.PLANS.items():
+        plan_data = pricing.get_plan_merged(key, db)
+        cfg = db.execute(select(PlanConfig).where(PlanConfig.key == key)).scalars().first()
+        result.append(PlanConfigResponse(
+            key=key,
+            name=defaults["name"],
+            tier=defaults["tier"],
+            price_full=float(plan_data["price_full"]),
+            price_coupon=float(plan_data["price_coupon"]),
+            price_onboarding=float(plan_data["price_onboarding"]),
+            has_onboarding_discount=bool(plan_data.get("has_onboarding_discount", True)),
+            routes_per_day=int(plan_data["routes_per_day"]),
+            max_stops=int(plan_data["max_stops"]),
+            updated_at=cfg.updated_at if cfg else None,
+        ))
+    return result
+
+
+@router.patch("/plans/{key}", response_model=PlanConfigResponse)
+async def update_plan_config(
+    key: str,
+    patch: PlanConfigPatch,
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    if key not in pricing.PLANS:
+        raise HTTPException(status_code=404, detail="Plano não encontrado")
+
+    cfg = db.execute(select(PlanConfig).where(PlanConfig.key == key)).scalars().first()
+    if not cfg:
+        defaults = pricing.PLANS[key]
+        cfg = PlanConfig(
+            key=key,
+            price_full=defaults["price_full"],
+            price_coupon=defaults["price_coupon"],
+            price_onboarding=defaults["price_onboarding"],
+            has_onboarding_discount=True,
+            routes_per_day=defaults["routes_per_day"],
+            max_stops=defaults["max_stops"],
+        )
+        db.add(cfg)
+
+    for field, val in patch.model_dump(exclude_unset=True).items():
+        setattr(cfg, field, val)
+
+    try:
+        db.commit()
+        db.refresh(cfg)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Update plan_config %s failed: %s", key, exc)
+        raise HTTPException(status_code=500, detail="Erro ao salvar configuração do plano")
+
+    defaults = pricing.PLANS[key]
+    plan_data = pricing.get_plan_merged(key, db)
+    return PlanConfigResponse(
+        key=key,
+        name=defaults["name"],
+        tier=defaults["tier"],
+        price_full=float(plan_data["price_full"]),
+        price_coupon=float(plan_data["price_coupon"]),
+        price_onboarding=float(plan_data["price_onboarding"]),
+        has_onboarding_discount=bool(plan_data.get("has_onboarding_discount", True)),
+        routes_per_day=int(plan_data["routes_per_day"]),
+        max_stops=int(plan_data["max_stops"]),
+        updated_at=cfg.updated_at,
+    )
+
+
+# ── Payout Config ─────────────────────────────────────────────────────────────
+
+@router.get("/payout-config", response_model=PayoutConfigResponse)
+async def get_payout_config(
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    cfg = db.execute(select(PayoutConfig).where(PayoutConfig.id == 1)).scalars().first()
+    if not cfg:
+        return PayoutConfigResponse(payout_day=5, auto_enabled=False, last_run_month=None)
+    return PayoutConfigResponse(
+        payout_day=cfg.payout_day,
+        auto_enabled=cfg.auto_enabled,
+        last_run_month=cfg.last_run_month,
+    )
+
+
+@router.patch("/payout-config", response_model=PayoutConfigResponse)
+async def update_payout_config(
+    body: PayoutConfigPatch,
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    cfg = db.execute(select(PayoutConfig).where(PayoutConfig.id == 1)).scalars().first()
+    if not cfg:
+        cfg = PayoutConfig(id=1, payout_day=5, auto_enabled=False)
+        db.add(cfg)
+    for field, val in body.model_dump(exclude_unset=True).items():
+        setattr(cfg, field, val)
+    try:
+        db.commit()
+        db.refresh(cfg)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Could not update payout config")
+    return PayoutConfigResponse(
+        payout_day=cfg.payout_day,
+        auto_enabled=cfg.auto_enabled,
+        last_run_month=cfg.last_run_month,
+    )
+
+
+@router.post("/trigger-payouts")
+async def trigger_payouts(
+    _admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+    settings=Depends(get_settings),
+):
+    partners = db.execute(
+        select(Partner).where(Partner.is_active == True, Partner.pix_key.isnot(None))
+    ).scalars().all()
+
+    results = []
+    for partner in partners:
+        result = await _execute_partner_payout(partner, db, settings)
+        results.append(result)
+
+    # Mark last_run_month
+    now = datetime.utcnow()
+    cfg = db.execute(select(PayoutConfig).where(PayoutConfig.id == 1)).scalars().first()
+    if cfg:
+        cfg.last_run_month = now.strftime("%Y-%m")
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    paid = [r for r in results if not r.get("skipped")]
+    skipped = [r for r in results if r.get("skipped")]
+    return {"paid": len(paid), "skipped": len(skipped), "details": results}
 
 
 # ── Transactions ──────────────────────────────────────────────────────────────

@@ -99,3 +99,11 @@ class AsaasService:
 
     def update_subscription(self, subscription_id: str, value: float) -> dict:
         return self._post(f"/subscriptions/{subscription_id}", {"value": value})
+
+    def create_pix_transfer(self, pix_key: str, pix_key_type: str, value: float, description: str) -> dict:
+        return self._post("/transfers", {
+            "value": value,
+            "pixAddressKey": pix_key,
+            "pixAddressKeyType": pix_key_type,
+            "description": description,
+        })

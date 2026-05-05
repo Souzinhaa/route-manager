@@ -1,4 +1,5 @@
 import logging
+import secrets
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,44 @@ _USER_COLUMNS = [
     "CREATE INDEX IF NOT EXISTS idx_shared_routes_token ON shared_routes(share_token)",
     "CREATE INDEX IF NOT EXISTS idx_shared_routes_route ON shared_routes(route_id)",
     "CREATE INDEX IF NOT EXISTS idx_shared_routes_user ON shared_routes(user_id)",
+    (
+        "CREATE TABLE IF NOT EXISTS plan_configs ("
+        "key VARCHAR PRIMARY KEY, "
+        "price_full NUMERIC(10,2) NOT NULL, "
+        "price_coupon NUMERIC(10,2) NOT NULL, "
+        "price_onboarding NUMERIC(10,2) NOT NULL, "
+        "has_onboarding_discount BOOLEAN DEFAULT TRUE NOT NULL, "
+        "routes_per_day INTEGER NOT NULL, "
+        "max_stops INTEGER NOT NULL, "
+        "updated_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('tester',0,0,0,TRUE,1,50) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('basic',49,44,39,TRUE,1,100) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('starter',109,99,89,TRUE,3,100) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('delivery',179,159,149,TRUE,5,150) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('premium',349,319,299,TRUE,10,200) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('enterprise_medio',1200,1200,1200,FALSE,50,300) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('enterprise_avancado',2500,2500,2500,FALSE,100,400) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('enterprise_custom',5000,5000,5000,FALSE,-1,-1) ON CONFLICT (key) DO NOTHING",
+    # Partner new fields
+    "ALTER TABLE partners ADD COLUMN IF NOT EXISTS phone VARCHAR",
+    "ALTER TABLE partners ADD COLUMN IF NOT EXISTS cpf_cnpj VARCHAR",
+    "ALTER TABLE partners ADD COLUMN IF NOT EXISTS pix_key VARCHAR",
+    "ALTER TABLE partners ADD COLUMN IF NOT EXISTS pix_key_type VARCHAR",
+    "ALTER TABLE partners ADD COLUMN IF NOT EXISTS access_token VARCHAR",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_partners_access_token ON partners (access_token) WHERE access_token IS NOT NULL",
+    # Payout config (single-row config table)
+    (
+        "CREATE TABLE IF NOT EXISTS payout_config ("
+        "id INTEGER PRIMARY KEY DEFAULT 1, "
+        "payout_day INTEGER DEFAULT 5 NOT NULL, "
+        "auto_enabled BOOLEAN DEFAULT FALSE NOT NULL, "
+        "last_run_month VARCHAR(7), "
+        "updated_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    "INSERT INTO payout_config (id, payout_day, auto_enabled) VALUES (1, 5, FALSE) ON CONFLICT (id) DO NOTHING",
 ]
 
 
@@ -90,4 +129,18 @@ def run_migrations(engine) -> None:
             except Exception as exc:
                 conn.rollback()
                 logger.warning("Migration skipped (%s): %s", sql[:60], exc)
+
+        # Generate access_token for any partner missing one
+        try:
+            partners = conn.execute(text("SELECT id FROM partners WHERE access_token IS NULL")).fetchall()
+            for row in partners:
+                token = secrets.token_urlsafe(32)
+                conn.execute(text("UPDATE partners SET access_token = :t WHERE id = :id"), {"t": token, "id": row[0]})
+            if partners:
+                conn.commit()
+                logger.info("[migrations] Generated access tokens for %d partners.", len(partners))
+        except Exception as exc:
+            conn.rollback()
+            logger.warning("[migrations] Could not generate partner tokens: %s", exc)
+
     logger.info("[migrations] users table columns up-to-date.")

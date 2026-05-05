@@ -4,6 +4,7 @@ import Partners from './admin/Partners'
 import Coupons from './admin/Coupons'
 import Transactions from './admin/Transactions'
 import UserCosts from './admin/UserCosts'
+import PlanConfig from './admin/PlanConfig'
 
 function ChangePasswordSection() {
   const [newPassword, setNewPassword] = useState('')
@@ -212,7 +213,7 @@ function Admin() {
 
       {/* Tab nav */}
       <div style={{ display: 'flex', gap: 4, marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-        {[['users', 'Usuários'], ['costs', 'Custos'], ['partners', 'Parceiros'], ['coupons', 'Cupons'], ['transactions', 'Transações']].map(([key, label]) => (
+        {[['users', 'Usuários'], ['plans', 'Planos'], ['costs', 'Custos'], ['partners', 'Parceiros'], ['coupons', 'Cupons'], ['transactions', 'Transações']].map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -224,6 +225,7 @@ function Admin() {
         ))}
       </div>
 
+      {tab === 'plans' && <PlanConfig />}
       {tab === 'costs' && <UserCosts />}
       {tab === 'partners' && <Partners />}
       {tab === 'coupons' && <Coupons />}

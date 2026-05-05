@@ -48,12 +48,47 @@ def _norm(plan_key: str) -> str:
     return "enterprise_medio" if plan_key == "enterprise" else plan_key
 
 
+def _to_float(v) -> float:
+    from decimal import Decimal
+    return float(v) if isinstance(v, (Decimal, int, float)) else float(v)
+
+
 def get_plan(plan_key: str) -> dict:
     return PLANS[_norm(plan_key)]
 
 
+def get_plan_merged(plan_key: str, db) -> dict:
+    """Hardcoded defaults merged with DB overrides. Falls back gracefully."""
+    from app.models.db import PlanConfig
+    from sqlalchemy import select
+    key = _norm(plan_key)
+    base = dict(PLANS[key])
+    try:
+        cfg = db.execute(select(PlanConfig).where(PlanConfig.key == key)).scalars().first()
+        if cfg:
+            for f in ("price_full", "price_coupon", "price_onboarding",
+                      "has_onboarding_discount", "routes_per_day", "max_stops"):
+                val = getattr(cfg, f, None)
+                if val is not None:
+                    base[f] = _to_float(val) if f not in ("has_onboarding_discount", "routes_per_day", "max_stops") else (
+                        bool(val) if f == "has_onboarding_discount" else int(val)
+                    )
+    except Exception:
+        pass
+    return base
+
+
 def plan_limits(plan_key: str) -> dict:
     p = get_plan(plan_key)
+    return {
+        "routes_per_day": p["routes_per_day"],
+        "max_waypoints": p["max_stops"],
+        "name": p["name"],
+    }
+
+
+def plan_limits_merged(plan_key: str, db) -> dict:
+    p = get_plan_merged(plan_key, db)
     return {
         "routes_per_day": p["routes_per_day"],
         "max_waypoints": p["max_stops"],
@@ -70,6 +105,16 @@ def resolve_price(plan_key: str, is_onboarding: bool, has_coupon: bool) -> float
     if has_coupon:
         return float(p["price_coupon"])
     return float(p["price_full"])
+
+
+def resolve_price_merged(plan_data: dict, is_onboarding: bool, has_coupon: bool) -> float:
+    if plan_data["tier"] == "enterprise":
+        return float(plan_data["price_full"])
+    if is_onboarding and plan_data.get("has_onboarding_discount", True):
+        return float(plan_data["price_onboarding"])
+    if has_coupon:
+        return float(plan_data["price_coupon"])
+    return float(plan_data["price_full"])
 
 
 def commission_for(plan_key: str) -> float:

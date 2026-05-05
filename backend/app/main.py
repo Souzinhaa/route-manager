@@ -33,7 +33,7 @@ from app.routes import health  # noqa: E402
 HEAVY_ROUTES_OK = True
 try:
     logger.info("[startup] importing heavy routes (auth, routes, billing, webhook)...")
-    from app.routes import auth, routes as routes_module, billing, webhook, admin, users, public  # noqa: E402
+    from app.routes import auth, routes as routes_module, billing, webhook, admin, users, public, partner  # noqa: E402
     logger.info("[startup] heavy routes loaded.")
 except Exception as exc:  # pragma: no cover
     logger.exception("[startup] heavy routes failed to import: %s", exc)
@@ -66,6 +66,47 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+async def _run_monthly_payouts():
+    """APScheduler job: run payouts on the configured day each month."""
+    from datetime import datetime
+    from sqlalchemy.orm import Session
+    from app.deps import SessionLocal as _SessionLocal
+    from app.models.db import Partner, PayoutConfig
+    from sqlalchemy import select
+
+    db: Session = _SessionLocal()
+    try:
+        cfg = db.execute(select(PayoutConfig).where(PayoutConfig.id == 1)).scalars().first()
+        if not cfg or not cfg.auto_enabled:
+            return
+        now = datetime.utcnow()
+        current_month = now.strftime("%Y-%m")
+        if cfg.last_run_month == current_month:
+            return
+        if now.day != cfg.payout_day:
+            return
+
+        logger.info("[payout] Running monthly auto-payouts for %s", current_month)
+        from app.config import get_settings as _get_settings
+        _settings = _get_settings()
+        from app.routes.admin import _execute_partner_payout
+        partners = db.execute(
+            select(Partner).where(Partner.is_active == True, Partner.pix_key.isnot(None))
+        ).scalars().all()
+
+        import asyncio
+        for partner in partners:
+            await _execute_partner_payout(partner, db, _settings)
+
+        cfg.last_run_month = current_month
+        db.commit()
+        logger.info("[payout] Monthly payouts done — %d partners processed.", len(partners))
+    except Exception as exc:
+        logger.exception("[payout] Monthly payout job failed: %s", exc)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_production_settings(settings)
@@ -82,6 +123,16 @@ async def lifespan(app: FastAPI):
         run_migrations(_engine)
     except Exception as exc:
         logger.exception("[startup] ERROR running migrations: %s", exc)
+
+    logger.info("[startup] starting payout scheduler...")
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(_run_monthly_payouts, "cron", hour=9, minute=0)
+        scheduler.start()
+        logger.info("[startup] Payout scheduler started (checks daily at 09:00 UTC).")
+    except Exception as exc:
+        logger.exception("[startup] Payout scheduler failed to start: %s", exc)
 
     yield
     logger.info("[shutdown] bye.")
@@ -124,6 +175,7 @@ if HEAVY_ROUTES_OK:
     app.include_router(webhook.router)
     app.include_router(admin.router)
     app.include_router(users.router)
+    app.include_router(partner.router)
 else:
     logger.warning("[startup] heavy routes disabled — only /health is available")
 

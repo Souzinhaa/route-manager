@@ -14,6 +14,7 @@ import Results from './pages/Results'
 import SharedRoute from './pages/SharedRoute'
 import Plans from './pages/Plans'
 import Admin from './pages/Admin'
+import PartnerPortal from './pages/PartnerPortal'
 import TermosDeUso from './pages/TermosDeUso'
 import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
 
@@ -207,6 +208,10 @@ function App() {
               <Route
                 path="/results"
                 element={user ? <Results user={user} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/parceiro/:token"
+                element={<PartnerPortal />}
               />
               <Route
                 path="/shared/:shareToken"

@@ -28,15 +28,15 @@ _SELF_SERVE_PLANS = _PAID_PLANS
 
 
 @router.get("/plans", response_model=List[PlanInfo])
-async def list_plans():
+async def list_plans(db: Session = Depends(get_db)):
     keys = ["basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"]
     result = []
     for k in keys:
-        p = pricing.PLANS[k]
+        p = pricing.get_plan_merged(k, db)
         result.append(PlanInfo(
             key=k,
-            name=p["name"],
-            tier=p["tier"],
+            name=pricing.PLANS[k]["name"],
+            tier=pricing.PLANS[k]["tier"],
             routes_per_day=p["routes_per_day"],
             max_stops=p["max_stops"],
             price_full=float(p["price_full"]),
@@ -100,8 +100,8 @@ async def subscribe(
             logger.exception("Asaas create_customer failed for %s: %s", current_user.email, exc)
             raise HTTPException(status_code=502, detail=str(exc) or "Could not create payment customer")
 
-    value = pricing.resolve_price(req.plan, current_user.is_onboarding, has_coupon=bool(coupon_obj))
-    plan_data = pricing.get_plan(req.plan)
+    plan_data = pricing.get_plan_merged(req.plan, db)
+    value = pricing.resolve_price_merged(plan_data, current_user.is_onboarding, has_coupon=bool(coupon_obj))
     next_due = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     try:

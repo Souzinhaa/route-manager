@@ -123,9 +123,24 @@ class Partner(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     contact_email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    cpf_cnpj = Column(String, nullable=True)
+    pix_key = Column(String, nullable=True)
+    pix_key_type = Column(String, nullable=True)
+    access_token = Column(String, unique=True, nullable=True)
     commission_balance = Column(Numeric(12, 2), default=0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PayoutConfig(Base):
+    __tablename__ = "payout_config"
+
+    id = Column(Integer, primary_key=True)
+    payout_day = Column(Integer, default=5, nullable=False)
+    auto_enabled = Column(Boolean, default=False, nullable=False)
+    last_run_month = Column(String(7), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Coupon(Base):
@@ -163,6 +178,19 @@ class SharedRoute(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     share_token = Column(String, unique=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PlanConfig(Base):
+    __tablename__ = "plan_configs"
+
+    key = Column(String, primary_key=True)
+    price_full = Column(Numeric(10, 2), nullable=False)
+    price_coupon = Column(Numeric(10, 2), nullable=False)
+    price_onboarding = Column(Numeric(10, 2), nullable=False)
+    has_onboarding_discount = Column(Boolean, default=True, nullable=False)
+    routes_per_day = Column(Integer, nullable=False)
+    max_stops = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 def get_db_url(settings):

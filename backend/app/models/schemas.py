@@ -183,18 +183,62 @@ class CouponValidateResponse(BaseModel):
 class PartnerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     contact_email: Optional[str] = None
+    phone: Optional[str] = Field(default=None, max_length=20)
+    cpf_cnpj: Optional[str] = Field(default=None, max_length=18)
+    pix_key: Optional[str] = Field(default=None, max_length=200)
+
+
+class PartnerPatch(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    contact_email: Optional[str] = None
+    phone: Optional[str] = Field(default=None, max_length=20)
+    cpf_cnpj: Optional[str] = Field(default=None, max_length=18)
+    pix_key: Optional[str] = Field(default=None, max_length=200)
+    is_active: Optional[bool] = None
 
 
 class PartnerResponse(BaseModel):
     id: int
     name: str
     contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    cpf_cnpj: Optional[str] = None
+    pix_key: Optional[str] = None
+    pix_key_type: Optional[str] = None
+    access_token: Optional[str] = None
     commission_balance: float
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PartnerPortalUser(BaseModel):
+    email: str
+    plan: str
+    plan_status: str
+
+
+class PartnerPortalResponse(BaseModel):
+    id: int
+    name: str
+    commission_balance: float
+    pix_key: Optional[str] = None
+    pix_key_type: Optional[str] = None
+    active_users: List[PartnerPortalUser]
+    total_earned: float
+
+
+class PayoutConfigResponse(BaseModel):
+    payout_day: int
+    auto_enabled: bool
+    last_run_month: Optional[str] = None
+
+
+class PayoutConfigPatch(BaseModel):
+    payout_day: Optional[int] = Field(default=None, ge=1, le=28)
+    auto_enabled: Optional[bool] = None
 
 
 class CouponCreate(BaseModel):
@@ -226,6 +270,31 @@ class TransactionResponse(BaseModel):
     asaas_payment_id: str
     event_type: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PlanConfigPatch(BaseModel):
+    price_full: Optional[float] = Field(default=None, ge=0)
+    price_coupon: Optional[float] = Field(default=None, ge=0)
+    price_onboarding: Optional[float] = Field(default=None, ge=0)
+    has_onboarding_discount: Optional[bool] = None
+    routes_per_day: Optional[int] = Field(default=None, ge=-1)
+    max_stops: Optional[int] = Field(default=None, ge=-1)
+
+
+class PlanConfigResponse(BaseModel):
+    key: str
+    name: str
+    tier: str
+    price_full: float
+    price_coupon: float
+    price_onboarding: float
+    has_onboarding_discount: bool
+    routes_per_day: int
+    max_stops: int
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
