@@ -33,7 +33,7 @@ from app.routes import health  # noqa: E402
 HEAVY_ROUTES_OK = True
 try:
     logger.info("[startup] importing heavy routes (auth, routes, billing, webhook)...")
-    from app.routes import auth, routes as routes_module, billing, webhook, admin, users  # noqa: E402
+    from app.routes import auth, routes as routes_module, billing, webhook, admin, users, public  # noqa: E402
     logger.info("[startup] heavy routes loaded.")
 except Exception as exc:  # pragma: no cover
     logger.exception("[startup] heavy routes failed to import: %s", exc)
@@ -119,6 +119,7 @@ app.include_router(health.router)
 if HEAVY_ROUTES_OK:
     app.include_router(auth.router)
     app.include_router(routes_module.router)
+    app.include_router(public.router)
     app.include_router(billing.router)
     app.include_router(webhook.router)
     app.include_router(admin.router)

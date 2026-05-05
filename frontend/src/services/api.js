@@ -80,6 +80,7 @@ export const routeService = {
     }),
   getHistory: () => api.get('/routes/history'),
   autocompleteAddress: (q) => api.get('/routes/autocomplete', { params: { q } }),
+  shareRoute: (routeId) => api.post(`/routes/${routeId}/share`),
 }
 
 export const adminService = {

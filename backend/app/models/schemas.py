@@ -167,6 +167,7 @@ class OptimizeRouteResponse(BaseModel):
     total_distance_km: float
     total_duration_minutes: float
     cost_estimate: float
+    route_id: Optional[int] = None
 
 
 class CouponValidateRequest(BaseModel):
@@ -224,6 +225,32 @@ class TransactionResponse(BaseModel):
     partner_id: Optional[int] = None
     asaas_payment_id: str
     event_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ShareRouteResponse(BaseModel):
+    share_token: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedRouteView(BaseModel):
+    id: int
+    name: str
+    optimization_type: str
+    start_address: str
+    end_address: str
+    waypoints: List[dict]
+    optimized_waypoints: Optional[List[dict]] = None
+    google_maps_url: Optional[str] = None
+    total_distance_km: Optional[float] = None
+    total_duration_minutes: Optional[float] = None
+    cost_estimate: Optional[float] = None
     created_at: datetime
 
     class Config:

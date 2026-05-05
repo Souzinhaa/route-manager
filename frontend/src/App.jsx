@@ -10,17 +10,26 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Results from './pages/Results'
+import SharedRoute from './pages/SharedRoute'
 import Plans from './pages/Plans'
 import Admin from './pages/Admin'
 import TermosDeUso from './pages/TermosDeUso'
 import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
 
-const PAYMENT_WALL_EXEMPT = new Set(['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade'])
+function isPaymentWallExempt(pathname) {
+  if (['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade'].includes(pathname)) {
+    return true
+  }
+  if (pathname.startsWith('/shared/')) {
+    return true
+  }
+  return false
+}
 
 function PaymentWallGuard({ user, onDowngrade }) {
   const location = useLocation()
   if (!user || user.is_admin) return null
-  if (PAYMENT_WALL_EXEMPT.has(location.pathname)) return null
+  if (isPaymentWallExempt(location.pathname)) return null
   if (!getBlockReason(user)) return null
   return <PaymentWallModal user={user} onDowngrade={onDowngrade} />
 }
@@ -195,6 +204,10 @@ function App() {
               <Route
                 path="/results"
                 element={user ? <Results user={user} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/shared/:shareToken"
+                element={<SharedRoute />}
               />
             </Routes>
           </main>

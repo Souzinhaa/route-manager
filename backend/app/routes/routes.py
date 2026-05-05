@@ -14,13 +14,15 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.deps import get_current_user, get_db
 from app.limiter import limiter
-from app.models.db import DailyUsage, Route, Upload, User
+from app.models.db import DailyUsage, Route, Upload, User, SharedRoute
 from app.models.schemas import (
     OptimizeRouteRequest,
     OptimizeRouteResponse,
     RouteCreate,
     RouteResponse,
     UploadResponse,
+    ShareRouteResponse,
+    SharedRouteView,
 )
 from app.services import pricing
 from app.services.geocoding import GeocodingService
@@ -254,6 +256,7 @@ async def optimize_route(
     cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
 
     # Increment daily usage and auto-save route to history
+    route_id = None
     try:
         _increment_daily_usage(current_user.id, db)
         db_route = Route(
@@ -271,17 +274,22 @@ async def optimize_route(
         )
         db.add(db_route)
         db.commit()
+        db.refresh(db_route)
+        route_id = db_route.id
     except Exception as exc:
         db.rollback()
         logger.exception("Failed to save route / deduct credits for user %s: %s", current_user.email, exc)
 
-    return OptimizeRouteResponse(
+    result = OptimizeRouteResponse(
         optimized_waypoints=optimized_waypoints,
         google_maps_url=maps_url,
         total_distance_km=round(distance, 2),
         total_duration_minutes=round(duration_minutes, 2),
         cost_estimate=round(cost, 2),
     )
+    # Add route_id to response dict for sharing
+    result.route_id = route_id
+    return result
 
 
 @router.get("/autocomplete")
@@ -349,3 +357,49 @@ async def save_route(
         )
 
     return RouteResponse.model_validate(db_route)
+
+
+@router.post("/{route_id}/share", response_model=ShareRouteResponse, status_code=status.HTTP_201_CREATED)
+async def share_route(
+    route_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a public share link for a route."""
+    stmt = select(Route).where(Route.id == route_id, Route.user_id == current_user.id)
+    route = db.execute(stmt).scalars().first()
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found",
+        )
+
+    # Check if route already shared
+    stmt_shared = select(SharedRoute).where(
+        SharedRoute.route_id == route_id,
+        SharedRoute.user_id == current_user.id,
+    )
+    shared = db.execute(stmt_shared).scalars().first()
+    if shared:
+        return ShareRouteResponse.model_validate(shared)
+
+    # Create new share
+    share_token = uuid.uuid4().hex
+    db_shared = SharedRoute(
+        route_id=route_id,
+        user_id=current_user.id,
+        share_token=share_token,
+    )
+    db.add(db_shared)
+    try:
+        db.commit()
+        db.refresh(db_shared)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to create share for route %s: %s", route_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create share link",
+        )
+
+    return ShareRouteResponse.model_validate(db_shared)

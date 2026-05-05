@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { routeService } from '../services/api'
 
 const VEHICLE_LABEL = {
   moto:   '🏍️ Moto',
@@ -30,6 +31,9 @@ function estimateToll(distKm, vehicleType, axleCount) {
 function Results() {
   const [route, setRoute] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [shareToken, setShareToken] = useState(null)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -88,6 +92,31 @@ ${grandTotal != null ? `Total: R$ ${grandTotal.toFixed(2)}` : ''}
 Paradas:
 ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
     navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleShare = async () => {
+    if (!route || !route.id) return
+    try {
+      setSharing(true)
+      setShareError(null)
+      const res = await routeService.shareRoute(route.id)
+      if (res.data?.share_token) {
+        setShareToken(res.data.share_token)
+      }
+    } catch (err) {
+      setShareError(err.response?.data?.detail || 'Erro ao compartilhar rota')
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const handleCopyShareLink = () => {
+    if (!shareToken) return
+    const origin = window.location.origin
+    const link = `${origin}/shared/${shareToken}`
+    navigator.clipboard.writeText(link)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -267,6 +296,53 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
             >
               {copied ? 'Copiado!' : 'Copiar resumo'}
             </button>
+
+            {shareToken ? (
+              <div style={{ marginBottom: 10, padding: 12, background: 'rgba(59,130,246,0.1)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.3)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--primary-light)', marginBottom: 6 }}>
+                  Link Compartilhável
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/shared/${shareToken}`}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '0.8rem',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(59,130,246,0.2)',
+                    borderRadius: 4,
+                    color: 'var(--text-1)',
+                    marginBottom: 8,
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={handleCopyShareLink}
+                >
+                  {copied ? 'Link copiado!' : 'Copiar link'}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-secondary"
+                style={{ width: '100%', marginBottom: 10 }}
+                onClick={handleShare}
+                disabled={sharing}
+              >
+                {sharing ? 'Gerando...' : '🔗 Compartilhar'}
+              </button>
+            )}
+
+            {shareError && (
+              <div style={{ padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4, color: 'var(--error)', fontSize: '0.75rem', marginBottom: 10 }}>
+                {shareError}
+              </div>
+            )}
+
             <button className="btn-primary" onClick={() => navigate('/dashboard')}>
               + Criar nova rota
             </button>

@@ -66,6 +66,18 @@ _USER_COLUMNS = [
         "WHERE is_onboarding = TRUE "
         "AND (plan_status = 'active' OR subscription_id IS NOT NULL)"
     ),
+    (
+        "CREATE TABLE IF NOT EXISTS shared_routes ("
+        "id SERIAL PRIMARY KEY, "
+        "route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE, "
+        "user_id INTEGER NOT NULL REFERENCES users(id), "
+        "share_token VARCHAR UNIQUE NOT NULL, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    "CREATE INDEX IF NOT EXISTS idx_shared_routes_token ON shared_routes(share_token)",
+    "CREATE INDEX IF NOT EXISTS idx_shared_routes_route ON shared_routes(route_id)",
+    "CREATE INDEX IF NOT EXISTS idx_shared_routes_user ON shared_routes(user_id)",
 ]
 
 
