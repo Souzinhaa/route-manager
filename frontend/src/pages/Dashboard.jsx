@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { routeService } from '../services/api'
+import { routeService, authService } from '../services/api'
 import { fetchCepData, buildAddressFromCepData } from '../components/CepInput'
 
 const VEHICLES = [
@@ -554,6 +554,8 @@ function Dashboard({ user, setUser }) {
         fuelConsumption: parseMasked(fuelConsumption),
         axleCount,
       }))
+      // Refresh user so routes_used_today stays in sync across header + dashboard
+      authService.getCurrentUser().then(r => setUser(r.data)).catch(() => {})
       setSuccess('Rota otimizada! Redirecionando...')
       setTimeout(() => navigate('/results'), 1200)
     } catch (err) {

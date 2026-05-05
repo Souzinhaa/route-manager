@@ -8,7 +8,7 @@ function daysLeft(isoDate) {
 }
 
 function PlanBanner({ user }) {
-  if (!user) return null
+  if (!user || user.is_admin) return null
 
   const { plan, plan_status, trial_expires_at } = user
 
