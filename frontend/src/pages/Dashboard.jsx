@@ -187,6 +187,9 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
   const [number, setNumber] = useState('')
   const [cepData, setCepData] = useState(null)
   const [cepStatus, setCepStatus] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const hasPriority = wp.priority > 0
 
   const handleCepChange = async (e) => {
@@ -212,6 +215,35 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
     const num = e.target.value
     setNumber(num)
     if (cepData) onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
+  }
+
+  const handleAddressChange = async (e) => {
+    const val = e.target.value
+    onChange({ ...wp, address: val })
+    setCepStatus(null)
+    setCepData(null)
+
+    if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+      setAutocompleteLoading(true)
+      setShowSuggestions(true)
+      try {
+        const res = await routeService.autocompleteAddress(val)
+        setSuggestions(res.data || [])
+      } catch (_) {
+        setSuggestions([])
+      } finally {
+        setAutocompleteLoading(false)
+      }
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelectSuggestion = (address) => {
+    onChange({ ...wp, address })
+    setSuggestions([])
+    setShowSuggestions(false)
   }
 
   return (
@@ -263,15 +295,46 @@ function WaypointRow({ wp, index, onChange, onRemove }) {
         </div>
       </div>
 
-      {/* Full address */}
-      <div className="waypoint-card-bottom">
+      {/* Full address with autocomplete */}
+      <div className="waypoint-card-bottom" style={{ position: 'relative' }}>
         <input
           type="text"
           value={wp.address}
-          onChange={e => { onChange({ ...wp, address: e.target.value }); setCepData(null) }}
+          onChange={handleAddressChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder="Endereço completo"
           style={{ flex: 1, minWidth: 0 }}
         />
+        {showSuggestions && (suggestions.length > 0 || autocompleteLoading) && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+            background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+            borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 150, overflowY: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}>
+            {autocompleteLoading ? (
+              <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                Buscando...
+              </div>
+            ) : (
+              suggestions.map((sugg, i) => (
+                <div
+                  key={i}
+                  onMouseDown={() => handleSelectSuggestion(sugg.address)}
+                  style={{
+                    padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-1)', fontSize: '0.8rem', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {sugg.address}
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {hasPriority && (
@@ -434,11 +497,19 @@ function Dashboard({ user, setUser }) {
     try {
       const formData = new FormData()
       formData.append('file', nfeFile)
-      const res = await routeService.api.post('/routes/upload', formData, {
-        params: { address_type: nfeAddressType },
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const params = new URLSearchParams()
+      params.append('address_type', nfeAddressType)
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/routes/upload?${params}`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       })
-      const addresses = res.data.extracted_data?.addresses || []
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.detail || 'Falha ao processar NFe.')
+      }
+      const data = await res.json()
+      const addresses = data.extracted_data?.addresses || []
       const newWps = addresses
         .map(a => ({ address: a.address || a, priority: 0 }))
         .filter(w => w.address)
@@ -449,8 +520,7 @@ function Dashboard({ user, setUser }) {
       if (nfeInputRef.current) nfeInputRef.current.value = ''
       if (newWps.length === 0) setError('Nenhum endereço encontrado neste arquivo.')
     } catch (err) {
-      const detail = err.response?.data?.detail
-      setError(Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : detail || 'Falha ao processar NFe.')
+      setError(err.message || 'Falha ao processar NFe.')
     } finally {
       setNfeLoading(false)
     }
