@@ -116,7 +116,7 @@ body::before {
    HEADER — frosted, with subtle glow line
 ───────────────────────────────────────── */
 .header {
-  background: rgba(7, 9, 26, .75);
+  background: rgba(30, 30, 30, .75);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -296,7 +296,7 @@ body::before {
 .header-nav-mobile {
   display: flex;
   flex-direction: column;
-  background: rgba(7, 9, 26, .95);
+  background: rgba(30, 30, 30, .95);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
   padding: 12px 24px 18px;
