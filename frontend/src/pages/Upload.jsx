@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { routeService } from '../services/api'
 
-function Upload() {
+function Upload({ user }) {
   const [allWaypoints, setAllWaypoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -10,27 +10,39 @@ function Upload() {
   const fileInputRef = useRef()
   const navigate = useNavigate()
 
+  const maxStops = user?.max_stops ?? 50
+
   const handleUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+    const files = Array.from(e.target.files)
+    if (!files.length) return
     setLoading(true)
     setError('')
-    try {
-      const res = await routeService.uploadFile(file)
-      const addresses = res.data.extracted_data?.addresses || []
-      const newWps = addresses
-        .map(a => ({ address: a.address || a, selected: true }))
-        .filter(w => w.address)
-      setAllWaypoints(prev => [...prev, ...newWps])
-      setFilesProcessed(n => n + 1)
-      if (newWps.length === 0) setError('Nenhum endereço encontrado neste arquivo.')
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    } catch (err) {
-      const detail = err.response?.data?.detail
-      setError(Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : detail || 'Falha no upload.')
-    } finally {
-      setLoading(false)
+
+    let added = 0
+    let errors = []
+
+    for (const file of files) {
+      try {
+        const res = await routeService.uploadFile(file)
+        const addresses = res.data.extracted_data?.addresses || []
+        const newWps = addresses
+          .map(a => ({ address: a.address || a, selected: true }))
+          .filter(w => w.address)
+        setAllWaypoints(prev => [...prev, ...newWps])
+        added += newWps.length
+        setFilesProcessed(n => n + 1)
+      } catch (err) {
+        const detail = err.response?.data?.detail
+        errors.push(
+          `${file.name}: ${Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : detail || 'Falha no upload.'}`
+        )
+      }
     }
+
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (added === 0 && errors.length === 0) setError('Nenhum endereço encontrado nos arquivos.')
+    if (errors.length > 0) setError(errors.join('\n'))
+    setLoading(false)
   }
 
   const toggleWaypoint = (i) => {
@@ -44,6 +56,7 @@ function Upload() {
   const removeWaypoint = (i) => setAllWaypoints(prev => prev.filter((_, idx) => idx !== i))
 
   const selectedCount = allWaypoints.filter(w => w.selected).length
+  const overLimit = maxStops !== -1 && selectedCount > maxStops
 
   const handleUseWaypoints = () => {
     const selected = allWaypoints.filter(w => w.selected)
@@ -59,25 +72,26 @@ function Upload() {
       </div>
 
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" style={{ whiteSpace: 'pre-line' }}>{error}</div>}
 
         {/* Upload zone */}
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-title">📤 Carregar Arquivo</div>
+          <div className="card-title">📤 Carregar Arquivos</div>
           <div
             className="drop-zone"
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="drop-zone-icon">📄</div>
             <div className="drop-zone-label">
-              {loading ? 'Processando...' : 'Clique para selecionar um arquivo'}
+              {loading ? 'Processando...' : 'Clique para selecionar um ou mais arquivos'}
             </div>
-            <div className="drop-zone-hint">XML, PDF, PNG, JPG — até 20 MB</div>
+            <div className="drop-zone-hint">XML, PDF, PNG, JPG — até 20 MB por arquivo</div>
           </div>
           <input
             ref={fileInputRef}
             type="file"
             accept=".xml,.pdf,.png,.jpg,.jpeg"
+            multiple
             onChange={handleUpload}
             style={{ display: 'none' }}
           />
@@ -94,10 +108,17 @@ function Upload() {
           <div className="card">
             <div className="card-title">
               📍 Endereços Extraídos
-              <span style={{ marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 400, color: 'var(--gray-500)' }}>
+              <span style={{ marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 400, color: overLimit ? 'var(--danger)' : 'var(--gray-500)' }}>
                 {selectedCount} de {allWaypoints.length} selecionados
+                {maxStops !== -1 && ` · limite: ${maxStops}`}
               </span>
             </div>
+
+            {overLimit && (
+              <div className="error" style={{ marginBottom: 12 }}>
+                Seleção excede o limite de {maxStops} paradas do seu plano. Desmarque {selectedCount - maxStops} endereço{selectedCount - maxStops > 1 ? 's' : ''}.
+              </div>
+            )}
 
             <div style={{ border: '1.5px solid var(--gray-200)', borderRadius: 8, overflow: 'hidden', marginBottom: 16, maxHeight: 400, overflowY: 'auto' }}>
               {allWaypoints.map((wp, i) => (
@@ -132,7 +153,7 @@ function Upload() {
               <button
                 className="btn-primary"
                 style={{ flex: 2 }}
-                disabled={selectedCount === 0}
+                disabled={selectedCount === 0 || overLimit}
                 onClick={handleUseWaypoints}
               >
                 🗺️ Usar {selectedCount} endereços na rota

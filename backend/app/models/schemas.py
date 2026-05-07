@@ -45,6 +45,7 @@ class UserResponse(BaseModel):
     trial_expires_at: Optional[datetime] = None
     is_admin: bool = False
     routes_used_today: int = 0
+    max_stops: int = 20
     created_at: datetime
     cpf_cnpj: Optional[str] = None
     is_onboarding: bool = True

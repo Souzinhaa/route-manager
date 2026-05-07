@@ -18,6 +18,7 @@ from app.models.schemas import (
     UserLogin,
     UserResponse,
 )
+from app.services import pricing
 
 TRIAL_DAYS = 3
 
@@ -167,4 +168,6 @@ async def logout(response: Response):
 async def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     data = UserResponse.model_validate(current_user)
     data.routes_used_today = get_routes_used_today(current_user.id, db)
+    limits = pricing.plan_limits_merged(current_user.plan or "tester", db)
+    data.max_stops = limits["max_waypoints"]
     return data
