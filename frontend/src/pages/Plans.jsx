@@ -116,7 +116,7 @@ function SubscribeModal({ plan, user, onClose, onSuccess }) {
                 key={bt}
                 type="button"
                 onClick={() => setBillingType(bt)}
-                style={{ flex: '1 1 70px', minWidth: 0, padding: '0.6rem 0.4rem', border: `1.5px solid ${billingType === bt ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, background: billingType === bt ? 'rgba(37,99,235,0.12)' : 'transparent', color: billingType === bt ? 'var(--primary-light)' : 'var(--text-2)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.15s' }}
+                style={{ flex: '1 1 70px', minWidth: 0, padding: '0.6rem 0.4rem', border: `1.5px solid ${billingType === bt ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, background: billingType === bt ? 'rgba(31,95,71,0.12)' : 'transparent', color: billingType === bt ? 'var(--primary-light)' : 'var(--text-2)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.15s' }}
               >
                 {bt === 'PIX' ? 'PIX' : bt === 'CREDIT_CARD' ? 'Cartão' : 'Boleto'}
               </button>
@@ -177,8 +177,8 @@ function PlanCard({ plan, isLoggedIn, localUser, onSelect }) {
   return (
     <div
       style={{
-        background: plan.key === 'delivery' ? 'linear-gradient(160deg, rgba(37,99,235,0.12), rgba(37,99,235,0.04))' : 'var(--card)',
-        border: `1.5px solid ${plan.key === 'delivery' ? 'rgba(37,99,235,0.5)' : 'var(--border)'}`,
+        background: plan.key === 'delivery' ? 'linear-gradient(160deg, rgba(31,95,71,0.12), rgba(31,95,71,0.04))' : 'var(--card)',
+        border: `1.5px solid ${plan.key === 'delivery' ? 'rgba(31,95,71,0.5)' : 'var(--border)'}`,
         borderRadius: 16, padding: 'clamp(1.25rem, 3vw, 1.75rem) clamp(1rem, 3vw, 1.5rem)',
         display: 'flex', flexDirection: 'column', position: 'relative',
         transition: 'transform 0.15s, box-shadow 0.15s', cursor: 'pointer',
@@ -272,7 +272,9 @@ function Plans({ user }) {
 
   useEffect(() => {
     billingService.getPlans()
-      .then(res => setPlans(res.data))
+      .then(res => {
+        setPlans(res.data)
+      })
       .catch(() => {})
   }, [])
 
@@ -281,6 +283,7 @@ function Plans({ user }) {
     if (coupon) localStorage.setItem('pending_coupon', coupon)
   }, [params])
 
+  const testerPlan = plans.find(p => p.key === 'tester')
   const consumerPlans = plans.filter(p => p.tier === 'consumer')
   const enterprisePlans = plans.filter(p => p.tier === 'enterprise')
 
@@ -300,7 +303,7 @@ function Plans({ user }) {
   return (
     <>
       {isWelcome && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(16,185,129,0.1))', borderBottom: '1px solid rgba(37,99,235,0.2)', padding: '0.85rem 1rem', textAlign: 'center' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(31,95,71,0.15), rgba(32,217,163,0.1))', borderBottom: '1px solid rgba(31,95,71,0.2)', padding: '0.85rem 1rem', textAlign: 'center' }}>
           <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>
             Conta criada! Você tem <strong style={{ color: '#34d399' }}>3 dias grátis</strong> para testar. Assine agora e não perca o acesso.
           </span>
@@ -318,13 +321,13 @@ function Plans({ user }) {
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 5vw, 4rem)' }}>
         <div style={{ textAlign: 'center', marginBottom: 'clamp(2rem, 5vw, 3.5rem)' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 100, padding: '0.35rem 1rem', marginBottom: '1.25rem' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }}></span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(31,95,71,0.1)', border: '1px solid rgba(31,95,71,0.2)', borderRadius: 100, padding: '0.35rem 1rem', marginBottom: '1.25rem' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }}></span>
             <span style={{ fontSize: '0.78rem', color: 'var(--primary-light)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Planos & Preços</span>
           </div>
           <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', fontWeight: 700, color: 'var(--text-1)', marginBottom: '1rem', lineHeight: 1.2 }}>
             Escolha o plano{' '}
-            <span style={{ background: 'linear-gradient(135deg, #2563EB, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <span style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-bright))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               certo para você
             </span>
           </h1>
@@ -334,10 +337,12 @@ function Plans({ user }) {
         </div>
 
         {/* Trial card */}
-        <div style={{ background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(16,185,129,0.06))', border: '1px solid rgba(37,99,235,0.25)', borderRadius: 16, padding: 'clamp(1rem, 3vw, 1.5rem) clamp(1rem, 3vw, 2rem)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(31,95,71,0.08), rgba(32,217,163,0.06))', border: '1px solid rgba(31,95,71,0.25)', borderRadius: 16, padding: 'clamp(1rem, 3vw, 1.5rem) clamp(1rem, 3vw, 2rem)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Trial Gratuito — 3 dias</div>
-            <div style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>1 rota/dia · 50 paradas · Acesso completo à plataforma</div>
+            <div style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>
+              {testerPlan ? `${testerPlan.routes_per_day} rota${testerPlan.routes_per_day === 1 ? '' : 's'}/dia · ${testerPlan.max_stops} paradas · Acesso completo à plataforma` : '1 rota/dia · 50 paradas · Acesso completo à plataforma'}
+            </div>
           </div>
           {!isLoggedIn && (
             <Link to="/register" style={{ padding: '0.7rem 1.5rem', background: 'var(--primary)', color: 'white', borderRadius: 8, fontSize: '0.9rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
