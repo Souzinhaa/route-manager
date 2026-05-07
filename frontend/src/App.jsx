@@ -17,9 +17,11 @@ import Admin from './pages/Admin'
 import PartnerPortal from './pages/PartnerPortal'
 import TermosDeUso from './pages/TermosDeUso'
 import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 function isPaymentWallExempt(pathname) {
-  if (['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade'].includes(pathname)) {
+  if (['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade', '/forgot-password', '/reset-password'].includes(pathname)) {
     return true
   }
   if (pathname.startsWith('/shared/')) {
@@ -192,6 +194,8 @@ function App() {
               <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
               <Route path="/login" element={<Login setUser={setUser} />} />
               <Route path="/register" element={<Register setUser={setUser} />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/plans" element={<Plans user={user} />} />
               <Route
                 path="/admin"

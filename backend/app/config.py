@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     # Admin bootstrap
     admin_email: str = ""
 
+    # SMTP / Email (Gmail: use App Password with 2FA enabled)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    frontend_url: str = "http://localhost:5173"
+
     # Asaas
     asaas_api_key: str = ""
     asaas_webhook_token: str = ""

@@ -117,6 +117,16 @@ _USER_COLUMNS = [
         ")"
     ),
     "INSERT INTO payout_config (id, payout_day, auto_enabled) VALUES (1, 5, FALSE) ON CONFLICT (id) DO NOTHING",
+    # Password reset tokens
+    (
+        "CREATE TABLE IF NOT EXISTS password_reset_tokens ("
+        "token VARCHAR PRIMARY KEY, "
+        "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+        "expires_at TIMESTAMP NOT NULL, "
+        "created_at TIMESTAMP DEFAULT NOW()"
+        ")"
+    ),
+    "CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)",
     # Composite indexes for hot query paths
     "CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date)",
     "CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, created_at DESC)",

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { authService } from '../services/api'
 import rmLogo from '../../assets/rm-logo.png'
 
@@ -9,6 +9,8 @@ function Login({ setUser }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const successMessage = location.state?.message || ''
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -39,6 +41,19 @@ function Login({ setUser }) {
           <p className="auth-subtitle">Acesse sua conta e otimize suas entregas</p>
         </div>
 
+        {successMessage && (
+          <div style={{
+            background: 'rgba(22,101,52,0.15)',
+            border: '1px solid rgba(22,101,52,0.4)',
+            borderRadius: 6,
+            padding: '0.75rem 1rem',
+            color: 'var(--primary-light)',
+            marginBottom: '1rem',
+            fontSize: '0.9rem',
+          }}>
+            {successMessage}
+          </div>
+        )}
         {error && <div className="error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
@@ -72,6 +87,11 @@ function Login({ setUser }) {
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
+          <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+            <Link to="/forgot-password" style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
+              Esqueceu sua senha?
+            </Link>
+          </div>
         </form>
 
         <div className="auth-footer">

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import jwt
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -13,6 +13,8 @@ from app.deps import get_current_user, get_db, get_routes_used_today
 from app.limiter import limiter
 from app.models.db import User
 from app.models.schemas import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -162,6 +164,84 @@ async def login(
 async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("csrf_token", path="/")
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+    settings=Depends(get_settings),
+):
+    _MSG = {"message": "Se este email estiver cadastrado, você receberá um link de redefinição."}
+
+    user = db.execute(select(User).where(User.email == body.email)).scalars().first()
+    if not user:
+        return _MSG
+
+    # Invalidate previous tokens for this user
+    db.execute(text("DELETE FROM password_reset_tokens WHERE user_id = :uid"), {"uid": user.id})
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    db.execute(
+        text("INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (:token, :uid, :exp)"),
+        {"token": token, "uid": user.id, "exp": expires_at},
+    )
+    db.commit()
+
+    try:
+        from app.services.email import send_password_reset_email
+        send_password_reset_email(
+            to_email=user.email,
+            reset_token=token,
+            frontend_url=settings.frontend_url,
+            smtp_host=settings.smtp_host,
+            smtp_port=settings.smtp_port,
+            smtp_user=settings.smtp_user,
+            smtp_password=settings.smtp_password,
+            smtp_from=settings.smtp_from or settings.smtp_user,
+        )
+    except Exception:
+        logger.exception("[auth] forgot_password: email send failed for %s", user.email)
+
+    return _MSG
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    _INVALID = HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado.")
+
+    row = db.execute(
+        text("SELECT user_id, expires_at FROM password_reset_tokens WHERE token = :token"),
+        {"token": body.token},
+    ).first()
+
+    if not row:
+        raise _INVALID
+
+    user_id, expires_at = row
+    if datetime.utcnow() > expires_at:
+        db.execute(text("DELETE FROM password_reset_tokens WHERE token = :token"), {"token": body.token})
+        db.commit()
+        raise _INVALID
+
+    user = db.execute(select(User).where(User.id == user_id)).scalars().first()
+    if not user:
+        raise _INVALID
+
+    user.hashed_password = get_password_hash(body.new_password)
+    db.execute(text("DELETE FROM password_reset_tokens WHERE token = :token"), {"token": body.token})
+    db.commit()
+
+    logger.info("[auth] Password reset completed for user_id=%s", user_id)
+    return {"message": "Senha redefinida com sucesso."}
 
 
 @router.get("/me", response_model=UserResponse)
