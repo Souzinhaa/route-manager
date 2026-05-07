@@ -91,7 +91,7 @@ _USER_COLUMNS = [
         "updated_at TIMESTAMP DEFAULT NOW()"
         ")"
     ),
-    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('tester',0,0,0,TRUE,1,50) ON CONFLICT (key) DO NOTHING",
+    "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('tester',0,0,0,TRUE,1,20) ON CONFLICT (key) DO NOTHING",
     "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('basic',49,44,39,TRUE,1,100) ON CONFLICT (key) DO NOTHING",
     "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('starter',109,99,89,TRUE,3,100) ON CONFLICT (key) DO NOTHING",
     "INSERT INTO plan_configs (key,price_full,price_coupon,price_onboarding,has_onboarding_discount,routes_per_day,max_stops) VALUES ('delivery',179,159,149,TRUE,5,150) ON CONFLICT (key) DO NOTHING",

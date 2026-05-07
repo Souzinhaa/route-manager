@@ -1,7 +1,7 @@
 PLANS = {
     "tester": {
         "tier": "trial", "name": "Tester",
-        "routes_per_day": 1, "max_stops": 50,
+        "routes_per_day": 1, "max_stops": 20,
         "price_full": 0, "price_coupon": 0, "price_onboarding": 0,
     },
     "basic": {

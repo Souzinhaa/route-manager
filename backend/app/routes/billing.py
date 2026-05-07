@@ -31,7 +31,7 @@ _SELF_SERVE_PLANS = _PAID_PLANS
 @router.get("/plans", response_model=List[PlanInfo])
 @limiter.limit("60/minute")
 async def list_plans(request: Request, db: Session = Depends(get_db)):
-    keys = ["basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"]
+    keys = ["tester", "basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"]
 
     # Fetch all PlanConfig rows in one query instead of 1 per plan
     cfg_rows = db.execute(select(PlanConfig).where(PlanConfig.key.in_(keys))).scalars().all()
