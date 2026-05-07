@@ -1,9 +1,10 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.limiter import limiter
 from app.models.db import SharedRoute, Route
 from app.models.schemas import SharedRouteView
 
@@ -12,7 +13,8 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 
 
 @router.get("/routes/{share_token}", response_model=SharedRouteView)
-async def get_shared_route(share_token: str, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_shared_route(request: Request, share_token: str, db: Session = Depends(get_db)):
     stmt = select(SharedRoute).where(SharedRoute.share_token == share_token)
     shared = db.execute(stmt).scalars().first()
 

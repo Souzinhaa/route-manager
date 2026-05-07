@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
@@ -90,17 +91,28 @@ async def _run_monthly_payouts():
         from app.config import get_settings as _get_settings
         _settings = _get_settings()
         from app.routes.admin import _execute_partner_payout
-        partners = db.execute(
-            select(Partner).where(Partner.is_active == True, Partner.pix_key.isnot(None))
-        ).scalars().all()
-
         import asyncio
-        for partner in partners:
-            await _execute_partner_payout(partner, db, _settings)
+
+        _BATCH = 50
+        offset = 0
+        total_processed = 0
+        while True:
+            partners = db.execute(
+                select(Partner)
+                .where(Partner.is_active == True, Partner.pix_key.isnot(None))
+                .limit(_BATCH)
+                .offset(offset)
+            ).scalars().all()
+            if not partners:
+                break
+            for partner in partners:
+                await _execute_partner_payout(partner, db, _settings)
+            total_processed += len(partners)
+            offset += _BATCH
 
         cfg.last_run_month = current_month
         db.commit()
-        logger.info("[payout] Monthly payouts done — %d partners processed.", len(partners))
+        logger.info("[payout] Monthly payouts done — %d partners processed.", total_processed)
     except Exception as exc:
         logger.exception("[payout] Monthly payout job failed: %s", exc)
     finally:
@@ -151,6 +163,7 @@ from app.middleware.csrf import CSRFMiddleware  # noqa: E402
 # including 403s from CSRFMiddleware, so the browser sees the real error not a fake CORS error.
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 cors_origins = settings.cors_origins_list
 allow_credentials = "*" not in cors_origins

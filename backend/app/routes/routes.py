@@ -181,6 +181,8 @@ async def upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not record upload",
         )
+    finally:
+        file_path.unlink(missing_ok=True)
 
     return UploadResponse.model_validate(db_upload)
 

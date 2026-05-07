@@ -201,8 +201,8 @@ def get_engine(settings):
     return create_engine(
         get_db_url(settings),
         pool_pre_ping=True,
-        pool_size=3,
-        max_overflow=2,
+        pool_size=10,
+        max_overflow=10,
         pool_recycle=3600,
     )
 

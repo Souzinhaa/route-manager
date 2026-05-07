@@ -117,6 +117,12 @@ _USER_COLUMNS = [
         ")"
     ),
     "INSERT INTO payout_config (id, payout_day, auto_enabled) VALUES (1, 5, FALSE) ON CONFLICT (id) DO NOTHING",
+    # Composite indexes for hot query paths
+    "CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date)",
+    "CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_coupons_code_active ON coupons(code, is_active)",
+    "CREATE INDEX IF NOT EXISTS idx_transactions_partner_created ON transactions(partner_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_users_plan_status ON users(plan, plan_status)",
 ]
 
 

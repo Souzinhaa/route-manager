@@ -25,12 +25,18 @@ class AsaasService:
             "access_token": api_key,
             "Content-Type": "application/json",
         }
+        self._client = httpx.Client(timeout=30)
+
+    def __del__(self):
+        try:
+            self._client.close()
+        except Exception:
+            pass
 
     def _get(self, path: str) -> dict:
-        with httpx.Client(timeout=30) as client:
-            r = client.get(f"{self.base_url}{path}", headers=self._headers)
-            r.raise_for_status()
-            return r.json()
+        r = self._client.get(f"{self.base_url}{path}", headers=self._headers)
+        r.raise_for_status()
+        return r.json()
 
     @staticmethod
     def _extract_error(exc: Exception) -> str:
@@ -44,19 +50,17 @@ class AsaasService:
         return str(exc)
 
     def _post(self, path: str, data: dict) -> dict:
-        with httpx.Client(timeout=30) as client:
-            r = client.post(f"{self.base_url}{path}", json=data, headers=self._headers)
-            try:
-                r.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise ValueError(self._extract_error(exc)) from exc
-            return r.json()
+        r = self._client.post(f"{self.base_url}{path}", json=data, headers=self._headers)
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ValueError(self._extract_error(exc)) from exc
+        return r.json()
 
     def _delete(self, path: str) -> dict:
-        with httpx.Client(timeout=30) as client:
-            r = client.delete(f"{self.base_url}{path}", headers=self._headers)
-            r.raise_for_status()
-            return r.json()
+        r = self._client.delete(f"{self.base_url}{path}", headers=self._headers)
+        r.raise_for_status()
+        return r.json()
 
     def create_customer(self, name: str, email: str, cpf_cnpj: Optional[str] = None) -> dict:
         data: dict = {"name": name, "email": email}

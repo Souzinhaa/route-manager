@@ -4,12 +4,13 @@ from datetime import date, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import get_current_user, get_db
 from app.limiter import limiter
-from app.models.db import User
+from app.models.db import PlanConfig, User
 from app.models.schemas import (
     CouponValidateRequest,
     CouponValidateResponse,
@@ -28,26 +29,40 @@ _SELF_SERVE_PLANS = _PAID_PLANS
 
 
 @router.get("/plans", response_model=List[PlanInfo])
-async def list_plans(db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+async def list_plans(request: Request, db: Session = Depends(get_db)):
     keys = ["basic", "starter", "delivery", "premium", "enterprise_medio", "enterprise_avancado"]
+
+    # Fetch all PlanConfig rows in one query instead of 1 per plan
+    cfg_rows = db.execute(select(PlanConfig).where(PlanConfig.key.in_(keys))).scalars().all()
+    cfg_map = {c.key: c for c in cfg_rows}
+
     result = []
     for k in keys:
-        p = pricing.get_plan_merged(k, db)
+        base = dict(pricing.PLANS[k])
+        cfg = cfg_map.get(k)
+        if cfg:
+            for f in ("price_full", "price_coupon", "price_onboarding", "routes_per_day", "max_stops"):
+                val = getattr(cfg, f, None)
+                if val is not None:
+                    base[f] = int(val) if f in ("routes_per_day", "max_stops") else float(val)
         result.append(PlanInfo(
             key=k,
             name=pricing.PLANS[k]["name"],
             tier=pricing.PLANS[k]["tier"],
-            routes_per_day=p["routes_per_day"],
-            max_stops=p["max_stops"],
-            price_full=float(p["price_full"]),
-            price_coupon=float(p["price_coupon"]),
-            price_onboarding=float(p["price_onboarding"]),
+            routes_per_day=base["routes_per_day"],
+            max_stops=base["max_stops"],
+            price_full=float(base["price_full"]),
+            price_coupon=float(base["price_coupon"]),
+            price_onboarding=float(base["price_onboarding"]),
         ))
     return result
 
 
 @router.post("/coupons/validate", response_model=CouponValidateResponse)
+@limiter.limit("10/minute")
 async def validate_coupon(
+    request: Request,
     req: CouponValidateRequest,
     db: Session = Depends(get_db),
 ):
@@ -146,25 +161,11 @@ async def subscribe(
 @router.get("/subscription", response_model=SubscriptionResponse)
 async def get_subscription(
     current_user: User = Depends(get_current_user),
-    settings=Depends(get_settings),
 ):
     if not current_user.subscription_id:
         raise HTTPException(status_code=404, detail="No active subscription")
 
-    if not settings.asaas_api_key:
-        return SubscriptionResponse(
-            subscription_id=current_user.subscription_id,
-            plan=current_user.plan or "tester",
-            plan_status=current_user.plan_status or "trial",
-        )
-
-    asaas = AsaasService(settings.asaas_api_key, sandbox=settings.asaas_sandbox)
-    try:
-        await asyncio.to_thread(asaas.get_subscription, current_user.subscription_id)
-    except Exception as exc:
-        logger.warning("Could not fetch subscription %s: %s", current_user.subscription_id, exc)
-        raise HTTPException(status_code=502, detail="Could not fetch subscription status")
-
+    # plan_status is kept in sync by Asaas webhooks — no need to call Asaas on every read
     return SubscriptionResponse(
         subscription_id=current_user.subscription_id,
         plan=current_user.plan or "tester",

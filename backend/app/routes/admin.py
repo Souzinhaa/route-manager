@@ -3,10 +3,10 @@ import secrets
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -98,40 +98,42 @@ async def get_stats(
     _admin: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ):
-    total_users = db.execute(select(func.count()).select_from(User)).scalar()
-    active_subs = db.execute(
-        select(func.count()).select_from(User).where(User.plan_status == "active")
-    ).scalar()
-    trial_users = db.execute(
-        select(func.count()).select_from(User).where(User.plan_status == "trial")
-    ).scalar()
+    # All user status counts in one GROUP BY query
+    status_rows = db.execute(
+        select(User.plan_status, func.count().label("cnt")).group_by(User.plan_status)
+    ).all()
+    status_map = {row.plan_status: row.cnt for row in status_rows}
+    total_users = sum(status_map.values())
+    active_subs = status_map.get("active", 0)
+    trial_users = status_map.get("trial", 0)
+    pending_count = status_map.get("pending", 0)
+    cancelled_count = status_map.get("cancelled", 0)
+
+    # All plan distribution + active counts in one GROUP BY query
+    plan_rows = db.execute(
+        select(
+            User.plan,
+            func.count().label("total"),
+            func.sum(case((User.plan_status == "active", 1), else_=0)).label("active_cnt"),
+        ).group_by(User.plan)
+    ).all()
+
+    plan_counts = {}
+    mrr = 0.0
+    for row in plan_rows:
+        plan_counts[row.plan] = row.total
+        plan_data = pricing.PLANS.get(row.plan)
+        if plan_data and plan_data["tier"] in ("consumer", "enterprise") and float(plan_data["price_full"]) > 0:
+            mrr += row.active_cnt * float(plan_data["price_full"])
+
+    # Ensure all known plans appear in plan_counts even if 0 users
+    for key in pricing.PLANS:
+        plan_counts.setdefault(key, 0)
+
     total_routes = db.execute(select(func.count()).select_from(Route)).scalar()
     routes_today = db.execute(
         select(func.sum(DailyUsage.routes_used)).where(DailyUsage.date == date.today())
     ).scalar() or 0
-
-    pending_count = db.execute(
-        select(func.count()).select_from(User).where(User.plan_status == "pending")
-    ).scalar()
-    cancelled_count = db.execute(
-        select(func.count()).select_from(User).where(User.plan_status == "cancelled")
-    ).scalar()
-
-    mrr = 0.0
-    plan_counts = {}
-    for plan_key, plan_data in pricing.PLANS.items():
-        count = db.execute(
-            select(func.count()).select_from(User).where(User.plan == plan_key)
-        ).scalar()
-        plan_counts[plan_key] = count
-        if plan_data["tier"] in ("consumer", "enterprise") and float(plan_data["price_full"]) > 0:
-            active_plan_count = db.execute(
-                select(func.count()).select_from(User).where(
-                    User.plan == plan_key, User.plan_status == "active"
-                )
-            ).scalar()
-            mrr += active_plan_count * float(plan_data["price_full"])
-
     commission_owed_total = db.execute(
         select(func.coalesce(func.sum(Partner.commission_balance), 0)).select_from(Partner)
     ).scalar() or 0.0
@@ -162,7 +164,23 @@ async def list_users(
     if search:
         stmt = stmt.where(User.email.ilike(f"%{search}%") | User.full_name.ilike(f"%{search}%"))
     users = db.execute(stmt).scalars().all()
-    return [_user_response(u, db) for u in users]
+
+    # Batch-fetch daily usage for all users in one query instead of N+1
+    user_ids = [u.id for u in users]
+    usage_rows = db.execute(
+        select(DailyUsage.user_id, DailyUsage.routes_used).where(
+            DailyUsage.user_id.in_(user_ids),
+            DailyUsage.date == date.today(),
+        )
+    ).all()
+    usage_map = {row.user_id: row.routes_used for row in usage_rows}
+
+    result = []
+    for u in users:
+        data = UserResponse.model_validate(u).model_dump()
+        data["routes_used_today"] = usage_map.get(u.id, 0)
+        result.append(data)
+    return result
 
 
 @router.get("/users/{user_id}")
@@ -270,8 +288,12 @@ async def change_password(
 async def list_partners(
     _admin: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ):
-    partners = db.execute(select(Partner).order_by(Partner.created_at.desc())).scalars().all()
+    partners = db.execute(
+        select(Partner).order_by(Partner.created_at.desc()).limit(limit).offset(offset)
+    ).scalars().all()
     return [PartnerResponse.model_validate(p) for p in partners]
 
 
@@ -593,6 +615,7 @@ async def update_payout_config(
 
 @router.post("/trigger-payouts")
 async def trigger_payouts(
+    confirm: bool = Query(default=False),
     _admin: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
     settings=Depends(get_settings),
@@ -601,12 +624,22 @@ async def trigger_payouts(
         select(Partner).where(Partner.is_active == True, Partner.pix_key.isnot(None))
     ).scalars().all()
 
+    eligible = [p for p in partners if float(p.commission_balance or 0) > 0]
+    total_amount = round(sum(float(p.commission_balance) for p in eligible), 2)
+
+    if not confirm:
+        return {
+            "preview": True,
+            "eligible_partners": len(eligible),
+            "total_amount": total_amount,
+            "message": "Passe confirm=true para executar os pagamentos",
+        }
+
     results = []
     for partner in partners:
         result = await _execute_partner_payout(partner, db, settings)
         results.append(result)
 
-    # Mark last_run_month
     now = datetime.utcnow()
     cfg = db.execute(select(PayoutConfig).where(PayoutConfig.id == 1)).scalars().first()
     if cfg:

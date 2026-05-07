@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -14,18 +15,27 @@ logger = logging.getLogger(__name__)
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 _CEP_RE = re.compile(r"\d{5}-?\d{3}")
 
+_viacep_cache: Dict[str, Optional[str]] = {}
+_VIACEP_CACHE_MAX = 1024
+
 
 def _lookup_cep(cep: str, number: str = "") -> Optional[str]:
     """Query ViaCEP and return formatted address string, or None on failure."""
     digits = re.sub(r"\D", "", cep)
     if len(digits) != 8:
         return None
+
+    cache_key = f"{digits}|{number}"
+    if cache_key in _viacep_cache:
+        return _viacep_cache[cache_key]
+
     try:
         resp = requests.get(f"https://viacep.com.br/ws/{digits}/json/", timeout=5)
         if resp.status_code != 200:
             return None
         data = resp.json()
         if data.get("erro"):
+            _viacep_cache[cache_key] = None
             return None
         parts = [
             data.get("logradouro", ""),
@@ -33,10 +43,18 @@ def _lookup_cep(cep: str, number: str = "") -> Optional[str]:
             data.get("bairro", ""),
             f"{data.get('localidade', '')} - {data.get('uf', '')}".strip(" -"),
         ]
-        return ", ".join(p for p in parts if p).strip()
+        result = ", ".join(p for p in parts if p).strip()
     except Exception as exc:
         logger.warning("ViaCEP lookup failed for %s: %s", cep, exc)
         return None
+
+    if len(_viacep_cache) >= _VIACEP_CACHE_MAX:
+        evict = list(_viacep_cache.keys())[: _VIACEP_CACHE_MAX // 4]
+        for k in evict:
+            del _viacep_cache[k]
+
+    _viacep_cache[cache_key] = result
+    return result
 
 
 def _xml_text(element, path: str) -> str:
@@ -126,6 +144,14 @@ class NFEParser:
 
     @staticmethod
     def parse_pdf_nfe(file_path: str) -> List[Dict]:
+        _MAX_PDF_BYTES = 5 * 1024 * 1024  # 5MB — beyond this pdf2image memory spikes
+        try:
+            if os.path.getsize(file_path) > _MAX_PDF_BYTES:
+                logger.warning("PDF too large for OCR, skipping: %s", file_path)
+                return []
+        except OSError:
+            pass
+
         try:
             # Process only first page for speed; DANFE is single-page
             images = convert_from_path(file_path, first_page=1, last_page=1)

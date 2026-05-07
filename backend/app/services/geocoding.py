@@ -1,14 +1,22 @@
 import logging
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict
 
 import requests
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache: normalized_address -> (lat, lng) or None
+# Survives across requests for the process lifetime. Max 2048 entries (~few MB).
+_geocode_cache: Dict[str, Optional[Tuple[float, float]]] = {}
+_GEOCODE_CACHE_MAX = 2048
+
+
+def _cache_key(address: str) -> str:
+    return address.lower().strip()
+
 
 class GeocodingService:
     BASE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-    DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -17,6 +25,10 @@ class GeocodingService:
         if not self.api_key:
             logger.warning("Geocoding skipped: GOOGLE_MAPS_API_KEY is not set")
             return None
+
+        key = _cache_key(address)
+        if key in _geocode_cache:
+            return _geocode_cache[key]
 
         try:
             response = requests.get(
@@ -34,12 +46,22 @@ class GeocodingService:
             results = data.get("results") or []
             if not results:
                 logger.info("Geocoding returned no results for %r", address)
+                _geocode_cache[key] = None
                 return None
             loc = results[0]["geometry"]["location"]
-            return (loc["lat"], loc["lng"])
+            coords = (loc["lat"], loc["lng"])
         except (KeyError, ValueError) as exc:
             logger.error("Geocoding response malformed for %r: %s", address, exc)
             return None
+
+        if len(_geocode_cache) >= _GEOCODE_CACHE_MAX:
+            # Evict oldest quarter when full
+            evict = list(_geocode_cache.keys())[: _GEOCODE_CACHE_MAX // 4]
+            for k in evict:
+                del _geocode_cache[k]
+
+        _geocode_cache[key] = coords
+        return coords
 
     def search(self, query: str) -> List[str]:
         """Search for addresses and return formatted address strings."""
@@ -70,23 +92,3 @@ class GeocodingService:
             logger.error("Address search response malformed for %r: %s", query, exc)
             return []
 
-    def get_distance_matrix(self, origins: List[str], destinations: List[str]) -> Dict[str, Any]:
-        if not self.api_key:
-            logger.warning("Distance matrix skipped: GOOGLE_MAPS_API_KEY is not set")
-            return {}
-
-        try:
-            response = requests.get(
-                self.DISTANCE_MATRIX_URL,
-                params={
-                    "origins": "|".join(origins),
-                    "destinations": "|".join(destinations),
-                    "key": self.api_key,
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as exc:
-            logger.error("Distance matrix request failed: %s", exc)
-            return {}
