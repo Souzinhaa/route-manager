@@ -449,7 +449,7 @@ function Dashboard({ user, setUser }) {
   const [currentWaypoint, setCurrentWaypoint] = useState('')
   const [loading, setLoading] = useState(false)
   const [nfeOpen, setNfeOpen] = useState(false)
-  const [nfeFile, setNfeFile] = useState(null)
+  const [nfeFiles, setNfeFiles] = useState([])
   const [nfeLoading, setNfeLoading] = useState(false)
   const [nfeCount, setNfeCount] = useState(0)
   const [nfeTypeModal, setNfeTypeModal] = useState(false)
@@ -521,34 +521,39 @@ function Dashboard({ user, setUser }) {
     setWaypoints(prev => prev.filter((_, idx) => idx !== i))
 
   const handleNfeUpload = async () => {
-    if (!nfeFile) return
+    if (nfeFiles.length === 0) return
     setNfeLoading(true)
     setError('')
+    const allNewWps = []
     try {
-      const formData = new FormData()
-      formData.append('file', nfeFile)
-      const params = new URLSearchParams()
-      params.append('address_type', nfeAddressType)
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/routes/upload?${params}`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.detail || 'Falha ao processar NFe.')
+      for (const file of nfeFiles) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const params = new URLSearchParams()
+        params.append('address_type', nfeAddressType)
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/routes/upload?${params}`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const errData = await res.json()
+          setError(prev => prev + `\n${file.name}: ${errData.detail || 'Falha ao processar.'}`)
+          continue
+        }
+        const data = await res.json()
+        const addresses = data.extracted_data?.addresses || []
+        const newWps = addresses
+          .map(a => ({ address: a.address || a, priority: 0 }))
+          .filter(w => w.address)
+        allNewWps.push(...newWps)
       }
-      const data = await res.json()
-      const addresses = data.extracted_data?.addresses || []
-      const newWps = addresses
-        .map(a => ({ address: a.address || a, priority: 0 }))
-        .filter(w => w.address)
-      setWaypoints(prev => [...prev, ...newWps])
-      setNfeCount(prev => prev + newWps.length)
-      setNfeFile(null)
+      setWaypoints(prev => [...prev, ...allNewWps])
+      setNfeCount(prev => prev + allNewWps.length)
+      setNfeFiles([])
       setNfeTypeModal(false)
       if (nfeInputRef.current) nfeInputRef.current.value = ''
-      if (newWps.length === 0) setError('Nenhum endereço encontrado neste arquivo.')
+      if (allNewWps.length === 0) setError('Nenhum endereço encontrado nos arquivos.')
     } catch (err) {
       setError(err.message || 'Falha ao processar NFe.')
     } finally {
@@ -733,14 +738,15 @@ function Dashboard({ user, setUser }) {
                       ref={nfeInputRef}
                       type="file"
                       accept=".xml,.pdf,.png,.jpg,.jpeg"
-                      onChange={e => setNfeFile(e.target.files[0])}
+                      multiple={true}
+                      onChange={e => setNfeFiles(Array.from(e.target.files))}
                     />
                   </div>
                   <button
                     type="button"
                     className="btn-success"
-                    onClick={() => nfeFile && setNfeTypeModal(true)}
-                    disabled={!nfeFile || nfeLoading}
+                    onClick={() => nfeFiles.length > 0 && setNfeTypeModal(true)}
+                    disabled={nfeFiles.length === 0 || nfeLoading}
                     style={{ width: 'auto', flexShrink: 0 }}
                   >
                     {nfeLoading ? '...' : 'Extrair'}
