@@ -52,6 +52,8 @@ function AddressField({ label, value, onChange, placeholder }) {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const numberInputRef = useRef(null)
 
+  const buildFullAddress = (addr, num) => num ? `${addr}, ${num}` : addr
+
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
     const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
@@ -74,12 +76,18 @@ function AddressField({ label, value, onChange, placeholder }) {
   const handleNumberChange = (e) => {
     const num = e.target.value
     setNumber(num)
-    if (cepData) onChange(buildAddressFromCepData(cepData, num))
+    if (cepData) {
+      onChange(buildAddressFromCepData(cepData, num))
+    } else if (value) {
+      onChange(buildFullAddress(value, num))
+    }
   }
 
   const handleAddressChange = async (e) => {
     const val = e.target.value
-    onChange(val)
+    const baseAddr = number && val.endsWith(`, ${number}`) ? val.slice(0, -(`, ${number}`.length)) : val
+    const fullAddress = number ? `${baseAddr}, ${number}` : baseAddr
+    onChange(fullAddress)
     setCepStatus(null)
     setCepData(null)
 
@@ -102,7 +110,8 @@ function AddressField({ label, value, onChange, placeholder }) {
   }
 
   const handleSelectSuggestion = (address) => {
-    onChange(address)
+    const fullAddress = buildFullAddress(address, number)
+    onChange(fullAddress)
     setSuggestions([])
     setShowSuggestions(false)
     setTimeout(() => numberInputRef.current?.focus(), 0)
@@ -195,6 +204,8 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const hasPriority = wp.priority > 0
 
+  const buildFullAddress = (addr, num) => num ? `${addr}, ${num}` : addr
+
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
     const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
@@ -217,12 +228,18 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const handleNumberChange = (e) => {
     const num = e.target.value
     setNumber(num)
-    if (cepData) onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
+    if (cepData) {
+      onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
+    } else if (wp.address) {
+      onChange({ ...wp, address: buildFullAddress(wp.address, num) })
+    }
   }
 
   const handleAddressChange = async (e) => {
     const val = e.target.value
-    onChange({ ...wp, address: val })
+    const baseAddr = number && val.endsWith(`, ${number}`) ? val.slice(0, -(`, ${number}`.length)) : val
+    const fullAddress = number ? `${baseAddr}, ${number}` : baseAddr
+    onChange({ ...wp, address: fullAddress })
     setCepStatus(null)
     setCepData(null)
 
@@ -244,7 +261,8 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   }
 
   const handleSelectSuggestion = (address) => {
-    onChange({ ...wp, address })
+    const fullAddress = buildFullAddress(address, number)
+    onChange({ ...wp, address: fullAddress })
     setSuggestions([])
     setShowSuggestions(false)
     setTimeout(() => numberInputRef?.current?.focus(), 0)
