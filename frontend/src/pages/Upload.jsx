@@ -91,9 +91,10 @@ function Upload({ user }) {
             ref={fileInputRef}
             type="file"
             accept=".xml,.pdf,.png,.jpg,.jpeg"
-            multiple
+            multiple={true}
             onChange={handleUpload}
             style={{ display: 'none' }}
+            webkitdirectory={false}
           />
           {filesProcessed > 0 && (
             <p style={{ marginTop: 12, fontSize: '0.85rem', color: 'var(--gray-500)', textAlign: 'center' }}>
