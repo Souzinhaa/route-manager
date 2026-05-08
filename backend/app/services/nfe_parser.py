@@ -196,7 +196,15 @@ class NFEParser:
             if digits in seen_ceps:
                 continue
             seen_ceps.add(digits)
-            addr = _lookup_cep(digits)
+
+            # Extract number near CEP (look before/after within 100 chars)
+            start = max(0, match.start() - 100)
+            end = min(len(text), match.end() + 100)
+            context = text[start:end]
+            number_match = re.search(r',\s*(\d+)', context)
+            number = number_match.group(1) if number_match else ""
+
+            addr = _lookup_cep(digits, number=number)
             if addr:
                 addresses.append({"address": addr, "type": "unknown"})
             if len(addresses) >= 10:
