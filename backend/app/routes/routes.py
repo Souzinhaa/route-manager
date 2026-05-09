@@ -208,13 +208,26 @@ async def optimize_route(
 
     # Run blocking geocoding calls in a threadpool so the event loop stays free.
     start_coords = await asyncio.to_thread(geo.geocode, req.start_address) or (0.0, 0.0)
-    end_coords = await asyncio.to_thread(geo.geocode, req.end_address) or (0.0, 0.0)
+    # Skip duplicate API call when end == start (common: round trips). Cache key would match anyway,
+    # but bypassing entirely avoids the lookup overhead and a rare cache miss edge case.
+    if req.end_address.strip().lower() == req.start_address.strip().lower():
+        end_coords = start_coords
+    else:
+        end_coords = await asyncio.to_thread(geo.geocode, req.end_address) or (0.0, 0.0)
 
+    # Deduplicate waypoint geocoding within this request: same address typed twice = 1 API call.
+    addr_coords_cache: dict[str, tuple[float, float]] = {}
     waypoints: list[dict] = []
     for wp in req.waypoints:
         wp_dict = wp.model_dump()
         if wp_dict.get("latitude") is None or wp_dict.get("longitude") is None:
-            coords = await asyncio.to_thread(geo.geocode, wp_dict["address"])
+            addr = wp_dict["address"]
+            key = addr.strip().lower()
+            coords = addr_coords_cache.get(key)
+            if coords is None:
+                coords = await asyncio.to_thread(geo.geocode, addr)
+                if coords:
+                    addr_coords_cache[key] = coords
             if coords:
                 wp_dict["latitude"], wp_dict["longitude"] = coords
         waypoints.append(wp_dict)
@@ -248,14 +261,39 @@ async def optimize_route(
         distance = free_dist
 
     capped = optimized_waypoints[: settings.max_waypoints]
-    all_addresses = [req.start_address] + [wp["address"] for wp in capped] + [req.end_address]
-    encoded = [quote(a, safe="") for a in all_addresses]
-    maps_url = "https://www.google.com/maps/dir/" + "/".join(encoded)
+
+    def _maps_pt(lat, lng, fallback_address: str) -> str:
+        if lat and lng and (lat, lng) != (0.0, 0.0):
+            return f"{round(float(lat), 6)},{round(float(lng), 6)}"
+        return quote(fallback_address, safe="")
+
+    start_pt = _maps_pt(start_coords[0], start_coords[1], req.start_address)
+    end_pt = _maps_pt(end_coords[0], end_coords[1], req.end_address)
+    wp_pts = [_maps_pt(wp.get("latitude"), wp.get("longitude"), wp["address"]) for wp in capped]
+
+    # Use ?api=1 format (supports avoid=tolls) when ≤ 8 intermediate waypoints.
+    # Fall back to path format with coordinates for larger routes (shorter URL, no ambiguity).
+    if req.avoid_tolls and len(wp_pts) <= 8:
+        wps_param = "%7C".join(wp_pts)
+        maps_url = (
+            f"https://www.google.com/maps/dir/?api=1"
+            f"&origin={start_pt}&destination={end_pt}"
+            f"&waypoints={wps_param}"
+            f"&avoid=tolls&travelmode=driving"
+        )
+    else:
+        maps_url = "https://www.google.com/maps/dir/" + "/".join([start_pt] + wp_pts + [end_pt])
 
     # distance is in km; minutes = distance / speed_kmh * 60
     speed_kmh = OrToolsService.get_speed_kmh(req.vehicle_type)
     duration_minutes = (distance / speed_kmh) * 60.0 if distance else 0.0
-    cost = OrToolsService.estimate_cost(distance, req.vehicle_type)
+    breakdown = OrToolsService.estimate_cost_breakdown(
+        distance,
+        req.vehicle_type,
+        fuel_price=req.fuel_price,
+        fuel_consumption=req.fuel_consumption,
+        axle_count=req.axle_count or 2,
+    )
 
     # Increment daily usage and auto-save route to history
     route_id = None
@@ -272,7 +310,7 @@ async def optimize_route(
             google_maps_url=maps_url,
             total_distance_km=round(distance, 2),
             total_duration_minutes=round(duration_minutes, 2),
-            cost_estimate=round(cost, 2),
+            cost_estimate=breakdown["total"],
         )
         db.add(db_route)
         db.commit()
@@ -287,7 +325,9 @@ async def optimize_route(
         google_maps_url=maps_url,
         total_distance_km=round(distance, 2),
         total_duration_minutes=round(duration_minutes, 2),
-        cost_estimate=round(cost, 2),
+        cost_estimate=breakdown["total"],
+        fuel_estimate=breakdown["fuel"],
+        toll_estimate=breakdown["toll"],
     )
     # Add route_id to response dict for sharing
     result.route_id = route_id

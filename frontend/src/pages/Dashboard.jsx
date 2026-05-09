@@ -52,7 +52,7 @@ function AddressField({ label, value, onChange, placeholder }) {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const numberInputRef = useRef(null)
 
-  const buildFullAddress = (addr, num) => num ? `${addr}, ${num}` : addr
+  const needsNumber = cepStatus === 'ok' && !number.trim()
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
@@ -67,6 +67,7 @@ function AddressField({ label, value, onChange, placeholder }) {
         setCepData(data)
         setCepStatus('ok')
         onChange(buildAddressFromCepData(data, number))
+        if (!number.trim()) setTimeout(() => numberInputRef.current?.focus(), 0)
       } else {
         setCepStatus('err')
       }
@@ -78,20 +79,15 @@ function AddressField({ label, value, onChange, placeholder }) {
     setNumber(num)
     if (cepData) {
       onChange(buildAddressFromCepData(cepData, num))
-    } else if (value) {
-      onChange(buildFullAddress(value, num))
     }
   }
 
   const handleAddressChange = async (e) => {
     const val = e.target.value
-    const baseAddr = number && val.endsWith(`, ${number}`) ? val.slice(0, -(`, ${number}`.length)) : val
-    const fullAddress = number ? `${baseAddr}, ${number}` : baseAddr
-    onChange(fullAddress)
+    onChange(val)
     setCepStatus(null)
     setCepData(null)
 
-    // Trigger autocomplete if user typed more than 3 chars
     if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
       setAutocompleteLoading(true)
       setShowSuggestions(true)
@@ -110,8 +106,7 @@ function AddressField({ label, value, onChange, placeholder }) {
   }
 
   const handleSelectSuggestion = (address) => {
-    const fullAddress = buildFullAddress(address, number)
-    onChange(fullAddress)
+    onChange(address)
     setSuggestions([])
     setShowSuggestions(false)
     setTimeout(() => numberInputRef.current?.focus(), 0)
@@ -137,14 +132,20 @@ function AddressField({ label, value, onChange, placeholder }) {
           onChange={handleNumberChange}
           placeholder="Nº"
           inputMode="numeric"
-          style={{ minWidth: 0, flex: 0.8, maxWidth: 70 }}
+          style={{
+            minWidth: 0, flex: 0.8, maxWidth: 70,
+            borderColor: needsNumber ? 'var(--warning, #f59e0b)' : undefined,
+          }}
           maxLength={10}
         />
         {cepStatus === 'loading' && (
           <span className="cep-status" style={{ color: 'var(--gray-400)' }}>Buscando...</span>
         )}
-        {cepStatus === 'ok' && (
+        {cepStatus === 'ok' && !needsNumber && (
           <span className="cep-status" style={{ color: 'var(--success)' }}>Encontrado</span>
+        )}
+        {needsNumber && (
+          <span className="cep-status" style={{ color: 'var(--warning, #f59e0b)' }}>Digite o nº</span>
         )}
         {cepStatus === 'err' && (
           <span className="cep-status" style={{ color: 'var(--danger)' }}>CEP inválido</span>
@@ -203,8 +204,7 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const hasPriority = wp.priority > 0
-
-  const buildFullAddress = (addr, num) => num ? `${addr}, ${num}` : addr
+  const needsNumber = cepStatus === 'ok' && !number.trim()
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
@@ -219,6 +219,7 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
         setCepData(data)
         setCepStatus('ok')
         onChange({ ...wp, address: buildAddressFromCepData(data, number) })
+        if (!number.trim()) setTimeout(() => numberInputRef?.current?.focus(), 0)
       } else {
         setCepStatus('err')
       }
@@ -230,16 +231,12 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
     setNumber(num)
     if (cepData) {
       onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
-    } else if (wp.address) {
-      onChange({ ...wp, address: buildFullAddress(wp.address, num) })
     }
   }
 
   const handleAddressChange = async (e) => {
     const val = e.target.value
-    const baseAddr = number && val.endsWith(`, ${number}`) ? val.slice(0, -(`, ${number}`.length)) : val
-    const fullAddress = number ? `${baseAddr}, ${number}` : baseAddr
-    onChange({ ...wp, address: fullAddress })
+    onChange({ ...wp, address: val })
     setCepStatus(null)
     setCepData(null)
 
@@ -261,8 +258,7 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   }
 
   const handleSelectSuggestion = (address) => {
-    const fullAddress = buildFullAddress(address, number)
-    onChange({ ...wp, address: fullAddress })
+    onChange({ ...wp, address })
     setSuggestions([])
     setShowSuggestions(false)
     setTimeout(() => numberInputRef?.current?.focus(), 0)
@@ -289,14 +285,20 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
           onChange={handleNumberChange}
           placeholder="Nº"
           inputMode="numeric"
-          style={{ minWidth: 0, flex: 0.7, maxWidth: 60, fontSize: '0.82rem', padding: '6px 8px' }}
+          style={{
+            minWidth: 0, flex: 0.7, maxWidth: 60, fontSize: '0.82rem', padding: '6px 8px',
+            borderColor: needsNumber ? 'var(--warning, #f59e0b)' : undefined,
+          }}
           maxLength={10}
         />
         {cepStatus === 'loading' && (
           <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>...</span>
         )}
-        {cepStatus === 'ok' && (
+        {cepStatus === 'ok' && !needsNumber && (
           <span style={{ fontSize: '0.72rem', color: 'var(--success)', whiteSpace: 'nowrap' }}>✓</span>
+        )}
+        {needsNumber && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>nº?</span>
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, minWidth: 0 }}>
@@ -569,7 +571,12 @@ function Dashboard({ user, setUser }) {
     setSuccess('')
     try {
       const res = await routeService.optimizeRoute(
-        'tsp', vehicleType, startAddress, endAddress, waypoints
+        'tsp', vehicleType, startAddress, endAddress, waypoints,
+        {
+          fuelPrice: parseMasked(fuelPrice),
+          fuelConsumption: parseMasked(fuelConsumption),
+          axleCount,
+        }
       )
       localStorage.setItem('lastRoute', JSON.stringify({
         ...res.data,

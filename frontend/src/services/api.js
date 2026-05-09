@@ -64,13 +64,17 @@ export const routeService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  optimizeRoute: (optimizationType, vehicleType, startAddress, endAddress, waypoints) =>
+  optimizeRoute: (optimizationType, vehicleType, startAddress, endAddress, waypoints, opts = {}) =>
     api.post('/routes/optimize', {
       optimization_type: optimizationType,
       vehicle_type: vehicleType,
       start_address: startAddress,
       end_address: endAddress,
       waypoints,
+      avoid_tolls: true,
+      fuel_price: opts.fuelPrice ?? null,
+      fuel_consumption: opts.fuelConsumption ?? null,
+      axle_count: opts.axleCount ?? 2,
     }),
   saveRoute: (name, optimizationType, startAddress, endAddress, waypoints) =>
     api.post('/routes/save', {

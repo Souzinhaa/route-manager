@@ -162,6 +162,10 @@ class OptimizeRouteRequest(BaseModel):
     start_address: str = Field(min_length=1, max_length=500)
     end_address: str = Field(min_length=1, max_length=500)
     waypoints: List[Waypoint] = Field(max_length=500)
+    avoid_tolls: bool = True
+    fuel_price: Optional[float] = Field(default=None, ge=0)
+    fuel_consumption: Optional[float] = Field(default=None, gt=0)
+    axle_count: Optional[int] = Field(default=2, ge=2, le=9)
 
     @field_validator("waypoints")
     @classmethod
@@ -177,6 +181,8 @@ class OptimizeRouteResponse(BaseModel):
     total_distance_km: float
     total_duration_minutes: float
     cost_estimate: float
+    fuel_estimate: float = 0.0
+    toll_estimate: float = 0.0
     route_id: Optional[int] = None
 
 

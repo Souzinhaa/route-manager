@@ -18,9 +18,8 @@ function fmt(val) {
   return val != null ? `R$ ${parseFloat(val).toFixed(2)}` : '—'
 }
 
-// Estimate toll cost: ~1 praça per 50km
-// moto: R$2.50/praça, leve: R$5.00/praça, pesado: R$5.00 × ceil(eixos/2)/praça
-function estimateToll(distKm, vehicleType, axleCount) {
+// Toll/fuel are now computed by the backend. Kept as fallback only when backend doesn't return them.
+function estimateTollFallback(distKm, vehicleType, axleCount) {
   const plazas = Math.floor(distKm / 50)
   if (plazas === 0) return 0
   if (vehicleType === 'moto') return plazas * 2.50
@@ -73,9 +72,16 @@ function Results() {
     route.fuelPrice && route.fuelConsumption && route.fuelConsumption > 0
       ? dist / route.fuelConsumption
       : null
-  const fuelTotal  = fuelLiters ? fuelLiters * route.fuelPrice : null
-  const tollRaw    = dist > 0 ? estimateToll(dist, route.vehicleType, route.axleCount) : 0
-  const tollTotal  = tollRaw > 0 ? tollRaw : null
+  // Prefer backend-computed values (single source of truth). Fallback to local calc for legacy routes.
+  const fuelTotal =
+    route.fuel_estimate != null && route.fuel_estimate > 0
+      ? route.fuel_estimate
+      : fuelLiters ? fuelLiters * route.fuelPrice : null
+  const tollFromBackend = route.toll_estimate
+  const tollTotal =
+    tollFromBackend != null
+      ? (tollFromBackend > 0 ? tollFromBackend : null)
+      : (dist > 0 ? estimateTollFallback(dist, route.vehicleType, route.axleCount) : null)
   const grandTotal =
     fuelTotal != null || tollTotal != null
       ? (fuelTotal || 0) + (tollTotal || 0)
