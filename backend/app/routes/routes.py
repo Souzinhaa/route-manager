@@ -284,11 +284,14 @@ async def optimize_route(
     else:
         maps_url = "https://www.google.com/maps/dir/" + "/".join([start_pt] + wp_pts + [end_pt])
 
-    # distance is in km; minutes = distance / speed_kmh * 60
+    # Apply road-distance factor: haversine underestimates real road km.
+    # Factor only affects displayed values + cost; OR-Tools ordering uses raw haversine (unaffected).
+    display_distance = distance * OrToolsService.ROAD_DISTANCE_FACTOR
+
     speed_kmh = OrToolsService.get_speed_kmh(req.vehicle_type)
-    duration_minutes = (distance / speed_kmh) * 60.0 if distance else 0.0
+    duration_minutes = (display_distance / speed_kmh) * 60.0 if display_distance else 0.0
     breakdown = OrToolsService.estimate_cost_breakdown(
-        distance,
+        display_distance,
         req.vehicle_type,
         fuel_price=req.fuel_price,
         fuel_consumption=req.fuel_consumption,
@@ -308,7 +311,7 @@ async def optimize_route(
             waypoints=[wp.model_dump() for wp in req.waypoints],
             optimized_waypoints=optimized_waypoints,
             google_maps_url=maps_url,
-            total_distance_km=round(distance, 2),
+            total_distance_km=round(display_distance, 2),
             total_duration_minutes=round(duration_minutes, 2),
             cost_estimate=breakdown["total"],
         )
@@ -323,13 +326,14 @@ async def optimize_route(
     result = OptimizeRouteResponse(
         optimized_waypoints=optimized_waypoints,
         google_maps_url=maps_url,
-        total_distance_km=round(distance, 2),
+        total_distance_km=round(display_distance, 2),
         total_duration_minutes=round(duration_minutes, 2),
         cost_estimate=breakdown["total"],
         fuel_estimate=breakdown["fuel"],
         toll_estimate=breakdown["toll"],
+        start_address=req.start_address,
+        end_address=req.end_address,
     )
-    # Add route_id to response dict for sharing
     result.route_id = route_id
     return result
 

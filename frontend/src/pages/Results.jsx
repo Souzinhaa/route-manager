@@ -154,11 +154,11 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-value">{dist.toFixed(1)}</div>
-          <div className="stat-label">km total</div>
+          <div className="stat-label">km total (aprox.)</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{formatDuration(route.total_duration_minutes)}</div>
-          <div className="stat-label">Tempo estimado</div>
+          <div className="stat-label">Tempo estimado (aprox.)</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{route.optimized_waypoints?.length || 0}</div>
@@ -178,7 +178,19 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
         <div className="card">
           <div className="card-title">Sequência Otimizada</div>
           {route.optimized_waypoints?.length > 0 ? (
-            <ol className="ordered-stops">
+            <ol className="ordered-stops" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {/* Start */}
+              {route.start_address && (
+                <li className="stop-item" style={{ opacity: 0.6 }}>
+                  <span className="stop-num" style={{ background: 'var(--success)', minWidth: 26, fontSize: '0.7rem' }}>▶</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', fontSize: '0.82rem' }}>
+                    {route.start_address}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Saída</span>
+                </li>
+              )}
+
+              {/* Waypoints */}
               {route.optimized_waypoints.map((wp, i) => {
                 const p = wp.priority || 0
                 return (
@@ -198,6 +210,17 @@ ${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}
                   </li>
                 )
               })}
+
+              {/* End */}
+              {route.end_address && (
+                <li className="stop-item" style={{ opacity: 0.6 }}>
+                  <span className="stop-num" style={{ background: 'var(--danger, #ef4444)', minWidth: 26, fontSize: '0.7rem' }}>■</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', fontSize: '0.82rem' }}>
+                    {route.end_address}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Chegada</span>
+                </li>
+              )}
             </ol>
           ) : (
             <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem' }}>Sem paradas</p>

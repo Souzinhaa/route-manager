@@ -107,13 +107,20 @@ class OrToolsService:
         wp_order = [node - 1 for node in route_nodes[1:-1]]
         return wp_order, total_m / 1000.0
 
-    _SPEED_KMH = {"moto": 70.0, "leve": 50.0, "pesado": 35.0}
+    # Realistic average urban speeds (km/h) with traffic, not free-flow.
+    # Real-world avg in Brazilian cities: leve ~30-35, moto ~40-50, pesado ~20-25.
+    _SPEED_KMH = {"moto": 45.0, "leve": 35.0, "pesado": 22.0}
     _COST_PER_KM = {"moto": 0.25, "leve": 0.50, "pesado": 1.20}
     _TOLL_PER_PLAZA = {"moto": 2.50, "leve": 5.00, "pesado": 5.00}
 
+    # Haversine (straight-line) underestimates road distance.
+    # Urban Brazil circuity factor ~1.35 converts crow-fly → road distance for display/costs.
+    # OR-Tools optimization uses raw haversine (relative distances unchanged, ordering unaffected).
+    ROAD_DISTANCE_FACTOR = 1.35
+
     @staticmethod
     def get_speed_kmh(vehicle_type: str = "leve") -> float:
-        return OrToolsService._SPEED_KMH.get(vehicle_type, 50.0)
+        return OrToolsService._SPEED_KMH.get(vehicle_type, 35.0)
 
     @staticmethod
     def estimate_toll(distance_km: float, vehicle_type: str = "leve", axle_count: int = 2) -> float:

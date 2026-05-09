@@ -183,6 +183,8 @@ class OptimizeRouteResponse(BaseModel):
     cost_estimate: float
     fuel_estimate: float = 0.0
     toll_estimate: float = 0.0
+    start_address: str = ""
+    end_address: str = ""
     route_id: Optional[int] = None
 
 
