@@ -41,6 +41,8 @@ async function resolveAddress(val) {
   return val
 }
 
+const AUTOCOMPLETE_DEBOUNCE_MS = 400
+
 /* ── Address field with CEP + number + autocomplete ── */
 function AddressField({ label, value, onChange, placeholder }) {
   const [cep, setCep] = useState('')
@@ -51,6 +53,7 @@ function AddressField({ label, value, onChange, placeholder }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const numberInputRef = useRef(null)
+  const autocompleteTimer = useRef(null)
 
   const needsNumber = cepStatus === 'ok' && !number.trim()
 
@@ -82,30 +85,35 @@ function AddressField({ label, value, onChange, placeholder }) {
     }
   }
 
-  const handleAddressChange = async (e) => {
+  const handleAddressChange = (e) => {
     const val = e.target.value
     onChange(val)
     setCepStatus(null)
     setCepData(null)
 
+    clearTimeout(autocompleteTimer.current)
     if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
       setAutocompleteLoading(true)
       setShowSuggestions(true)
-      try {
-        const res = await routeService.autocompleteAddress(val)
-        setSuggestions(res.data || [])
-      } catch (_) {
-        setSuggestions([])
-      } finally {
-        setAutocompleteLoading(false)
-      }
+      autocompleteTimer.current = setTimeout(async () => {
+        try {
+          const res = await routeService.autocompleteAddress(val)
+          setSuggestions(res.data || [])
+        } catch (_) {
+          setSuggestions([])
+        } finally {
+          setAutocompleteLoading(false)
+        }
+      }, AUTOCOMPLETE_DEBOUNCE_MS)
     } else {
+      setAutocompleteLoading(false)
       setSuggestions([])
       setShowSuggestions(false)
     }
   }
 
   const handleSelectSuggestion = (address) => {
+    clearTimeout(autocompleteTimer.current)
     onChange(address)
     setSuggestions([])
     setShowSuggestions(false)
@@ -203,6 +211,7 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
+  const autocompleteTimer = useRef(null)
   const hasPriority = wp.priority > 0
   const needsNumber = cepStatus === 'ok' && !number.trim()
 
@@ -234,30 +243,35 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
     }
   }
 
-  const handleAddressChange = async (e) => {
+  const handleAddressChange = (e) => {
     const val = e.target.value
     onChange({ ...wp, address: val })
     setCepStatus(null)
     setCepData(null)
 
+    clearTimeout(autocompleteTimer.current)
     if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
       setAutocompleteLoading(true)
       setShowSuggestions(true)
-      try {
-        const res = await routeService.autocompleteAddress(val)
-        setSuggestions(res.data || [])
-      } catch (_) {
-        setSuggestions([])
-      } finally {
-        setAutocompleteLoading(false)
-      }
+      autocompleteTimer.current = setTimeout(async () => {
+        try {
+          const res = await routeService.autocompleteAddress(val)
+          setSuggestions(res.data || [])
+        } catch (_) {
+          setSuggestions([])
+        } finally {
+          setAutocompleteLoading(false)
+        }
+      }, AUTOCOMPLETE_DEBOUNCE_MS)
     } else {
+      setAutocompleteLoading(false)
       setSuggestions([])
       setShowSuggestions(false)
     }
   }
 
   const handleSelectSuggestion = (address) => {
+    clearTimeout(autocompleteTimer.current)
     onChange({ ...wp, address })
     setSuggestions([])
     setShowSuggestions(false)
