@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     asaas_webhook_token: str = ""
     asaas_sandbox: bool = True
 
+    # Verbose logging (auth headers, etc.). Off in production.
+    debug: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = False

@@ -54,6 +54,13 @@ function AddressField({ label, value, onChange, placeholder }) {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const numberInputRef = useRef(null)
   const autocompleteTimer = useRef(null)
+  const autocompleteAbort = useRef(null)
+
+  // Cleanup pending autocomplete on unmount: avoid setState on unmounted component + cancel in-flight request.
+  useEffect(() => () => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+  }, [])
 
   const needsNumber = cepStatus === 'ok' && !number.trim()
 
@@ -92,15 +99,18 @@ function AddressField({ label, value, onChange, placeholder }) {
     setCepData(null)
 
     clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+
     if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
       setAutocompleteLoading(true)
       setShowSuggestions(true)
       autocompleteTimer.current = setTimeout(async () => {
+        autocompleteAbort.current = new AbortController()
         try {
-          const res = await routeService.autocompleteAddress(val)
+          const res = await routeService.autocompleteAddress(val, autocompleteAbort.current.signal)
           setSuggestions(res.data || [])
-        } catch (_) {
-          setSuggestions([])
+        } catch (err) {
+          if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') setSuggestions([])
         } finally {
           setAutocompleteLoading(false)
         }
@@ -114,6 +124,7 @@ function AddressField({ label, value, onChange, placeholder }) {
 
   const handleSelectSuggestion = (address) => {
     clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
     onChange(address)
     setSuggestions([])
     setShowSuggestions(false)
@@ -203,7 +214,7 @@ function AddressField({ label, value, onChange, placeholder }) {
 }
 
 /* ── Single waypoint row ── */
-function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
+const WaypointRow = React.memo(function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [cep, setCep] = useState('')
   const [number, setNumber] = useState('')
   const [cepData, setCepData] = useState(null)
@@ -212,8 +223,14 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [autocompleteLoading, setAutocompleteLoading] = useState(false)
   const autocompleteTimer = useRef(null)
+  const autocompleteAbort = useRef(null)
   const hasPriority = wp.priority > 0
   const needsNumber = cepStatus === 'ok' && !number.trim()
+
+  useEffect(() => () => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+  }, [])
 
   const handleCepChange = async (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
@@ -250,15 +267,18 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
     setCepData(null)
 
     clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+
     if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
       setAutocompleteLoading(true)
       setShowSuggestions(true)
       autocompleteTimer.current = setTimeout(async () => {
+        autocompleteAbort.current = new AbortController()
         try {
-          const res = await routeService.autocompleteAddress(val)
+          const res = await routeService.autocompleteAddress(val, autocompleteAbort.current.signal)
           setSuggestions(res.data || [])
-        } catch (_) {
-          setSuggestions([])
+        } catch (err) {
+          if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') setSuggestions([])
         } finally {
           setAutocompleteLoading(false)
         }
@@ -272,6 +292,7 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
 
   const handleSelectSuggestion = (address) => {
     clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
     onChange({ ...wp, address })
     setSuggestions([])
     setShowSuggestions(false)
@@ -383,7 +404,13 @@ function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
       )}
     </div>
   )
-}
+}, (prev, next) => {
+  // Skip onChange/onRemove identity (parent recreates arrows per render).
+  // Parent uses functional setState, so stale closures aren't an issue.
+  return prev.wp === next.wp
+    && prev.index === next.index
+    && prev.numberInputRef === next.numberInputRef
+})
 
 const PLAN_LIMITS = {
   tester:              { routes_per_day: 1,   max_waypoints: 50,  name: 'Trial' },
@@ -397,7 +424,7 @@ const PLAN_LIMITS = {
   enterprise_custom:   { routes_per_day: -1,  max_waypoints: -1,  name: 'Enterprise Custom' },
 }
 
-function PlanWidget({ user, todayRoutes }) {
+const PlanWidget = React.memo(function PlanWidget({ user, todayRoutes }) {
   if (!user) return null
   if (user.is_admin) return null
   const plan = user.plan || 'tester'
@@ -453,7 +480,7 @@ function PlanWidget({ user, todayRoutes }) {
       </Link>
     </div>
   )
-}
+})
 
 /* ── Dashboard page ── */
 function Dashboard({ user, setUser }) {

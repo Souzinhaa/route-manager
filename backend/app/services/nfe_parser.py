@@ -1,8 +1,9 @@
 import logging
 import os
 import re
+import time
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import requests
 import pytesseract
@@ -15,27 +16,42 @@ logger = logging.getLogger(__name__)
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 _CEP_RE = re.compile(r"\d{5}-?\d{3}")
 
-_viacep_cache: Dict[str, Optional[str]] = {}
-_VIACEP_CACHE_MAX = 1024
+# Cache value: (formatted_address_or_None, expiry_epoch).
+# Successful lookups cached 90 days (CEPs rarely change).
+# Failed/invalid lookups cached 1 hour (allows retry once user fixes the input or transient errors clear).
+_viacep_cache: Dict[str, Tuple[Optional[str], float]] = {}
+_VIACEP_CACHE_MAX = 4096
+_VIACEP_TTL_SUCCESS = 90 * 24 * 3600
+_VIACEP_TTL_FAILURE = 3600
 
 
 def _lookup_cep(cep: str, number: str = "") -> Optional[str]:
-    """Query ViaCEP and return formatted address string, or None on failure."""
+    """Query ViaCEP and return formatted address string, or None on failure.
+
+    Caches both hits and misses (different TTLs) to minimize repeated calls
+    against ViaCEP's soft rate limit (~300 req/min/IP).
+    """
     digits = re.sub(r"\D", "", cep)
     if len(digits) != 8:
         return None
 
     cache_key = f"{digits}|{number}"
-    if cache_key in _viacep_cache:
-        return _viacep_cache[cache_key]
+    now = time.time()
+    cached = _viacep_cache.get(cache_key)
+    if cached:
+        result, expiry = cached
+        if expiry > now:
+            return result
+        del _viacep_cache[cache_key]
 
     try:
         resp = requests.get(f"https://viacep.com.br/ws/{digits}/json/", timeout=5)
         if resp.status_code != 200:
+            # Don't cache transient errors (5xx, network) — let retry happen.
             return None
         data = resp.json()
         if data.get("erro"):
-            _viacep_cache[cache_key] = None
+            _store_in_cache(cache_key, None, now + _VIACEP_TTL_FAILURE)
             return None
         parts = [
             data.get("logradouro", ""),
@@ -48,13 +64,16 @@ def _lookup_cep(cep: str, number: str = "") -> Optional[str]:
         logger.warning("ViaCEP lookup failed for %s: %s", cep, exc)
         return None
 
+    _store_in_cache(cache_key, result, now + _VIACEP_TTL_SUCCESS)
+    return result
+
+
+def _store_in_cache(key: str, value: Optional[str], expiry: float) -> None:
     if len(_viacep_cache) >= _VIACEP_CACHE_MAX:
         evict = list(_viacep_cache.keys())[: _VIACEP_CACHE_MAX // 4]
         for k in evict:
             del _viacep_cache[k]
-
-    _viacep_cache[cache_key] = result
-    return result
+    _viacep_cache[key] = (value, expiry)
 
 
 def _xml_text(element, path: str) -> str:

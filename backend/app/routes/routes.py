@@ -33,8 +33,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
 
-def _check_plan_access(user: User, num_waypoints: int, db: Session) -> None:
-    # Admins have unlimited access
+def _check_and_reserve_usage(user: User, num_waypoints: int, db: Session) -> None:
+    """Validate plan limits and increment DailyUsage in a single round-trip.
+
+    Replaces the previous _check_plan_access + _increment_daily_usage pair, which
+    issued two SELECTs against DailyUsage on every /optimize call.
+    """
     if user.is_admin:
         return
 
@@ -66,31 +70,27 @@ def _check_plan_access(user: User, num_waypoints: int, db: Session) -> None:
         )
 
     max_routes = limits["routes_per_day"]
-    if max_routes != -1:
-        today = date.today()
-        usage = db.execute(
-            select(DailyUsage).where(
-                DailyUsage.user_id == user.id,
-                DailyUsage.date == today,
-            )
-        ).scalars().first()
-        used = usage.routes_used if usage else 0
-        if used >= max_routes:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Limite diário atingido ({max_routes} rota(s)/dia no plano {plan_key!r}).",
-            )
-
-
-def _increment_daily_usage(user_id: int, db: Session) -> None:
     today = date.today()
+
+    # Single SELECT covers both the limit check and the increment write.
     usage = db.execute(
-        select(DailyUsage).where(DailyUsage.user_id == user_id, DailyUsage.date == today)
+        select(DailyUsage).where(
+            DailyUsage.user_id == user.id,
+            DailyUsage.date == today,
+        )
     ).scalars().first()
+    used = usage.routes_used if usage else 0
+
+    if max_routes != -1 and used >= max_routes:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Limite diário atingido ({max_routes} rota(s)/dia no plano {plan_key!r}).",
+        )
+
     if usage:
         usage.routes_used += 1
     else:
-        db.add(DailyUsage(user_id=user_id, date=today, routes_used=1))
+        db.add(DailyUsage(user_id=user.id, date=today, routes_used=1))
 
 ALLOWED_EXTENSIONS = {".xml", ".pdf", ".png", ".jpg", ".jpeg"}
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]")
@@ -202,7 +202,7 @@ async def optimize_route(
             detail=f"Too many waypoints (max {settings.max_waypoints})",
         )
 
-    _check_plan_access(current_user, len(req.waypoints), db)
+    _check_and_reserve_usage(current_user, len(req.waypoints), db)
 
     geo = GeocodingService(settings.google_maps_api_key)
 
@@ -298,10 +298,9 @@ async def optimize_route(
         axle_count=req.axle_count or 2,
     )
 
-    # Increment daily usage and auto-save route to history
+    # DailyUsage already incremented in _check_and_reserve_usage (single SELECT for both check + write).
     route_id = None
     try:
-        _increment_daily_usage(current_user.id, db)
         db_route = Route(
             user_id=current_user.id,
             name=f"Rota {datetime.now().strftime('%d/%m %H:%M')}",

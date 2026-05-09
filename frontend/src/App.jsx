@@ -1,24 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { authService } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
 import PlanBanner from './components/PlanBanner'
 import PaymentWallModal, { getBlockReason } from './components/PaymentWallModal'
 import rmLogo from '../assets/rm-logo.png'
+
+// Eager: critical above-the-fold and auth flows. Bundled in main entry.
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
-import Upload from './pages/Upload'
-import Results from './pages/Results'
-import SharedRoute from './pages/SharedRoute'
-import Plans from './pages/Plans'
-import Admin from './pages/Admin'
-import PartnerPortal from './pages/PartnerPortal'
-import TermosDeUso from './pages/TermosDeUso'
-import PoliticaDePrivacidade from './pages/PoliticaDePrivacidade'
-import ForgotPassword from './pages/ForgotPassword'
-import ResetPassword from './pages/ResetPassword'
+
+// Lazy: secondary pages loaded on-demand. Cuts initial bundle size for first paint.
+const Upload = lazy(() => import('./pages/Upload'))
+const Results = lazy(() => import('./pages/Results'))
+const SharedRoute = lazy(() => import('./pages/SharedRoute'))
+const Plans = lazy(() => import('./pages/Plans'))
+const Admin = lazy(() => import('./pages/Admin'))
+const PartnerPortal = lazy(() => import('./pages/PartnerPortal'))
+const TermosDeUso = lazy(() => import('./pages/TermosDeUso'))
+const PoliticaDePrivacidade = lazy(() => import('./pages/PoliticaDePrivacidade'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
 function isPaymentWallExempt(pathname) {
   if (['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade', '/forgot-password', '/reset-password'].includes(pathname)) {
@@ -188,40 +192,42 @@ function App() {
 
           {/* ── Page content ── */}
           <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
-            <Routes>
-              <Route path="/termos-de-uso" element={<TermosDeUso />} />
-              <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
-              <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
-              <Route path="/login" element={<Login setUser={setUser} />} />
-              <Route path="/register" element={<Register setUser={setUser} />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/plans" element={<Plans user={user} />} />
-              <Route
-                path="/admin"
-                element={user?.is_admin ? <Admin /> : <Navigate to="/dashboard" />}
-              />
-              <Route
-                path="/dashboard"
-                element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/upload"
-                element={user ? <Upload user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/results"
-                element={user ? <Results user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/parceiro/:token"
-                element={<PartnerPortal />}
-              />
-              <Route
-                path="/shared/:shareToken"
-                element={<SharedRoute />}
-              />
-            </Routes>
+            <Suspense fallback={<div className="loading"><div className="spinner"></div></div>}>
+              <Routes>
+                <Route path="/termos-de-uso" element={<TermosDeUso />} />
+                <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
+                <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
+                <Route path="/login" element={<Login setUser={setUser} />} />
+                <Route path="/register" element={<Register setUser={setUser} />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/plans" element={<Plans user={user} />} />
+                <Route
+                  path="/admin"
+                  element={user?.is_admin ? <Admin /> : <Navigate to="/dashboard" />}
+                />
+                <Route
+                  path="/dashboard"
+                  element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/upload"
+                  element={user ? <Upload user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/results"
+                  element={user ? <Results user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/parceiro/:token"
+                  element={<PartnerPortal />}
+                />
+                <Route
+                  path="/shared/:shareToken"
+                  element={<SharedRoute />}
+                />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </Router>

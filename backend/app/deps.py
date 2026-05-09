@@ -36,13 +36,16 @@ def get_current_user(
             token = authorization[7:]
 
     if not token:
-        logger.info(
-            "[auth] No token. cookies=%s origin=%s host=%s scheme=%s",
-            list(request.cookies.keys()),
-            request.headers.get("origin"),
-            request.headers.get("host"),
-            request.url.scheme,
-        )
+        # Debug-only: missing-token logging is high-frequency on public endpoints and
+        # noisy in production logs. Keep concise warning level for triage; full headers only when DEBUG.
+        if settings.debug:
+            logger.info(
+                "[auth] No token. cookies=%s origin=%s host=%s scheme=%s",
+                list(request.cookies.keys()),
+                request.headers.get("origin"),
+                request.headers.get("host"),
+                request.url.scheme,
+            )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:

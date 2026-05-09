@@ -85,7 +85,7 @@ export const routeService = {
       waypoints,
     }),
   getHistory: () => api.get('/routes/history'),
-  autocompleteAddress: (q) => api.get('/routes/autocomplete', { params: { q } }),
+  autocompleteAddress: (q, signal) => api.get('/routes/autocomplete', { params: { q }, signal }),
   shareRoute: (routeId) => api.post(`/routes/${routeId}/share`),
 }
 
