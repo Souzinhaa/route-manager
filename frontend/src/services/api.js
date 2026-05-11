@@ -4,18 +4,23 @@ const API_URL = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
-  withCredentials: true,  // send httpOnly cookies on every request
+  withCredentials: true,
 })
 
+// No-ops kept for import compatibility — auth is httpOnly cookie + CSRF header
+export function getToken() { return null }
+export function setToken(_token) {}
+
+// CSRF token is stored in localStorage because in cross-origin deployments (Vercel → Render)
+// document.cookie cannot read cookies set by a different domain.
 function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+  return localStorage.getItem('csrf_token')
 }
 
-// Attach CSRF token to state-changing requests (double-submit cookie pattern)
+// Attach CSRF token on state-changing requests (double-submit cookie pattern)
 api.interceptors.request.use((config) => {
   const method = (config.method || 'get').toUpperCase()
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     const csrf = getCsrfToken()
     if (csrf) config.headers['X-CSRF-Token'] = csrf
   }
@@ -34,12 +39,21 @@ api.interceptors.response.use(
 )
 
 export const authService = {
-  register: (email, password, fullName) =>
-    api.post('/auth/register', { email, password, full_name: fullName }),
-  login: (email, password) =>
-    api.post('/auth/login', { email, password }),
-  logout: () => api.post('/auth/logout'),
+  register: (email, password, fullName, cpfCnpj, lgpdConsent) =>
+    api.post('/auth/register', { email, password, full_name: fullName, cpf_cnpj: cpfCnpj, lgpd_consent: lgpdConsent }),
+  login: async (email, password) => {
+    const res = await api.post('/auth/login', { email, password })
+    if (res.data?.csrf_token) localStorage.setItem('csrf_token', res.data.csrf_token)
+    return res
+  },
+  logout: async () => {
+    const res = await api.post('/auth/logout')
+    localStorage.removeItem('csrf_token')
+    return res
+  },
   getCurrentUser: () => api.get('/auth/me'),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, new_password: newPassword }),
 }
 
 export const routeService = {
@@ -50,12 +64,17 @@ export const routeService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  optimizeRoute: (optimizationType, startAddress, endAddress, waypoints) =>
+  optimizeRoute: (optimizationType, vehicleType, startAddress, endAddress, waypoints, opts = {}) =>
     api.post('/routes/optimize', {
       optimization_type: optimizationType,
+      vehicle_type: vehicleType,
       start_address: startAddress,
       end_address: endAddress,
       waypoints,
+      avoid_tolls: true,
+      fuel_price: opts.fuelPrice ?? null,
+      fuel_consumption: opts.fuelConsumption ?? null,
+      axle_count: opts.axleCount ?? 2,
     }),
   saveRoute: (name, optimizationType, startAddress, endAddress, waypoints) =>
     api.post('/routes/save', {
@@ -66,6 +85,52 @@ export const routeService = {
       waypoints,
     }),
   getHistory: () => api.get('/routes/history'),
+  autocompleteAddress: (q, signal) => api.get('/routes/autocomplete', { params: { q }, signal }),
+  shareRoute: (routeId) => api.post(`/routes/${routeId}/share`),
+}
+
+export const adminService = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  getUser: (id) => api.get(`/admin/users/${id}`),
+  patchUser: (id, data) => api.patch(`/admin/users/${id}`, data),
+  getUserRoutes: (id) => api.get(`/admin/users/${id}/routes`),
+  deleteRoute: (userId, routeId) => api.delete(`/admin/users/${userId}/routes/${routeId}`),
+  changePassword: (newPassword) => api.post('/admin/change-password', { new_password: newPassword }),
+  getUserCosts: (params) => api.get('/admin/user-costs', { params }),
+  getPlans: () => api.get('/admin/plans'),
+  updatePlan: (key, data) => api.patch(`/admin/plans/${key}`, data),
+  getPayoutConfig: () => api.get('/admin/payout-config'),
+  updatePayoutConfig: (data) => api.patch('/admin/payout-config', data),
+  triggerPayouts: () => api.post('/admin/trigger-payouts'),
+}
+
+export const billingService = {
+  getPlans: () => api.get('/billing/plans'),
+  subscribe: (plan, billingType, cpfCnpj, couponCode) =>
+    api.post('/billing/subscribe', { plan, billing_type: billingType, cpf_cnpj: cpfCnpj, coupon_code: couponCode || undefined }),
+  validateCoupon: (code) =>
+    api.post('/billing/coupons/validate', { code }),
+  getSubscription: () => api.get('/billing/subscription'),
+  cancelSubscription: () => api.delete('/billing/subscription'),
+  downgrade: () => api.post('/billing/downgrade'),
+}
+
+export const adminBillingService = {
+  getPartners: () => api.get('/admin/partners'),
+  createPartner: (data) => api.post('/admin/partners', data),
+  getPartner: (id) => api.get(`/admin/partners/${id}`),
+  withdrawCommission: (id, amount) => api.post(`/admin/partners/${id}/withdraw`, { amount }),
+  pixPayoutPartner: (id) => api.post(`/admin/partners/${id}/pix-payout`),
+  updatePartner: (id, data) => api.patch(`/admin/partners/${id}`, data),
+  getCoupons: () => api.get('/admin/coupons'),
+  createCoupon: (data) => api.post('/admin/coupons', data),
+  toggleCoupon: (id) => api.patch(`/admin/coupons/${id}`),
+  getTransactions: (params) => api.get('/admin/transactions', { params }),
+}
+
+export const partnerService = {
+  getPortal: (token) => api.get(`/partner/portal/${token}`),
 }
 
 export default api

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\souza\\\\Documents\\\\python\\\\route-manager\" -Recurse -Depth 2)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(xargs grep *)",
+      "PowerShell(git -C \"c:\\\\Users\\\\souza\\\\Documents\\\\python\\\\route-manager\" log --oneline -10)",
+      "PowerShell(git -C \"c:\\\\Users\\\\souza\\\\Documents\\\\python\\\\route-manager\" diff HEAD~1 HEAD --name-only)",
+      "PowerShell($file = \"C:\\\\Users\\\\souza\\\\.claude\\\\projects\\\\c--Users-souza-Documents-python-route-manager\\\\6019ea61-05b2-46c2-a14c-349f6ecb7e7b.jsonl\"; $lines = Get-Content $file -Tail 200; $lines | Where-Object { $_ -match '\"type\":\"human\"' -or \\($_ -match '\"type\":\"assistant\"' -and $_ -match '\"text\"'\\) } | Select-Object -Last 50)",
+      "PowerShell($file = \"C:\\\\Users\\\\souza\\\\.claude\\\\projects\\\\c--Users-souza-Documents-python-route-manager\\\\6019ea61-05b2-46c2-a14c-349f6ecb7e7b.jsonl\"; $content = Get-Content $file -Raw; $lines = $content -split \"`n\"; $last100 = $lines | Select-Object -Last 100; foreach \\($line in $last100\\) { if \\($line -match '\"role\":\"user\"' -or \\($line -match '\"role\":\"assistant\"' -and $line -notmatch '\"tool_use\"' -and $line -match '\"text\"'\\)\\) { try { $obj = $line | ConvertFrom-Json; if \\($obj.message.content\\) { $obj.message.role + \": \" + \\($obj.message.content | Where-Object { $_.type -eq \"text\" } | Select-Object -First 1 -ExpandProperty text\\) } } catch {} } })",
+      "PowerShell(git -C \"c:\\\\Users\\\\souza\\\\Documents\\\\python\\\\route-manager\" log main..feat/deploy-vercel-render-neon --oneline)",
+      "Bash(Find-Content -Path \"c:\\\\Users\\\\souza\\\\Documents\\\\python\\\\route-manager\\\\frontend\" -Filter \"vite.config.js\" -ErrorAction SilentlyContinue)",
+      "Bash(git add *)",
+      "Bash(python3 scripts/search.py \"logistics saas dark theme green teal professional\" --design-system -p \"Route Manager\" -f markdown)",
+      "PowerShell(python --version)",
+      "Bash(npm run *)",
+      "Bash(public\")"
+    ]
+  }
+}

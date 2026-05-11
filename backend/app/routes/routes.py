@@ -2,6 +2,7 @@ import asyncio
 import logging
 import re
 import uuid
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -13,14 +14,17 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.deps import get_current_user, get_db
 from app.limiter import limiter
-from app.models.db import Route, Upload, User
+from app.models.db import DailyUsage, Route, Upload, User, SharedRoute
 from app.models.schemas import (
     OptimizeRouteRequest,
     OptimizeRouteResponse,
     RouteCreate,
     RouteResponse,
     UploadResponse,
+    ShareRouteResponse,
+    SharedRouteView,
 )
+from app.services import pricing
 from app.services.geocoding import GeocodingService
 from app.services.nfe_parser import NFEParser
 from app.services.ortools_service import OrToolsService
@@ -28,7 +32,65 @@ from app.services.ortools_service import OrToolsService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
-CREDIT_COST_OPTIMIZE = 1.0
+
+def _check_and_reserve_usage(user: User, num_waypoints: int, db: Session) -> None:
+    """Validate plan limits and increment DailyUsage in a single round-trip.
+
+    Replaces the previous _check_plan_access + _increment_daily_usage pair, which
+    issued two SELECTs against DailyUsage on every /optimize call.
+    """
+    if user.is_admin:
+        return
+
+    plan_key = (user.plan or "tester").lower()
+    plan_status = (user.plan_status or "trial").lower()
+
+    if plan_status == "trial":
+        if user.trial_expires_at and datetime.utcnow() > user.trial_expires_at:
+            raise HTTPException(
+                status_code=402,
+                detail="Trial expirado. Faça uma assinatura para continuar.",
+            )
+    elif plan_status in ("pending", "cancelled"):
+        raise HTTPException(
+            status_code=402,
+            detail="Assinatura inativa. Atualize seu pagamento.",
+        )
+
+    try:
+        limits = pricing.plan_limits(plan_key)
+    except KeyError:
+        limits = pricing.plan_limits("tester")
+
+    max_wp = limits["max_waypoints"]
+    if max_wp != -1 and num_waypoints > max_wp:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plano {plan_key!r} permite no máximo {max_wp} paradas por rota.",
+        )
+
+    max_routes = limits["routes_per_day"]
+    today = date.today()
+
+    # Single SELECT covers both the limit check and the increment write.
+    usage = db.execute(
+        select(DailyUsage).where(
+            DailyUsage.user_id == user.id,
+            DailyUsage.date == today,
+        )
+    ).scalars().first()
+    used = usage.routes_used if usage else 0
+
+    if max_routes != -1 and used >= max_routes:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Limite diário atingido ({max_routes} rota(s)/dia no plano {plan_key!r}).",
+        )
+
+    if usage:
+        usage.routes_used += 1
+    else:
+        db.add(DailyUsage(user_id=user.id, date=today, routes_used=1))
 
 ALLOWED_EXTENSIONS = {".xml", ".pdf", ".png", ".jpg", ".jpeg"}
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]")
@@ -48,6 +110,7 @@ def _sanitize_filename(raw: str) -> str:
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
+    address_type: str = Query(default="both", regex="^(destination|origin|both)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings=Depends(get_settings),
@@ -96,6 +159,10 @@ async def upload_file(
     # NFEParser is sync (PDF/OCR is CPU-bound); offload to threadpool to avoid blocking the loop.
     extracted_data = await asyncio.to_thread(NFEParser.parse_file, str(file_path))
 
+    # Filter by address_type: keep only requested type(s)
+    if address_type != "both":
+        extracted_data = [a for a in extracted_data if a.get("type") == address_type]
+
     db_upload = Upload(
         user_id=current_user.id,
         filename=raw_name,
@@ -114,6 +181,8 @@ async def upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not record upload",
         )
+    finally:
+        file_path.unlink(missing_ok=True)
 
     return UploadResponse.model_validate(db_upload)
 
@@ -133,54 +202,159 @@ async def optimize_route(
             detail=f"Too many waypoints (max {settings.max_waypoints})",
         )
 
-    if current_user.credits < CREDIT_COST_OPTIMIZE:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient credits (need {CREDIT_COST_OPTIMIZE}, have {current_user.credits})",
-        )
+    _check_and_reserve_usage(current_user, len(req.waypoints), db)
 
     geo = GeocodingService(settings.google_maps_api_key)
 
     # Run blocking geocoding calls in a threadpool so the event loop stays free.
     start_coords = await asyncio.to_thread(geo.geocode, req.start_address) or (0.0, 0.0)
-    end_coords = await asyncio.to_thread(geo.geocode, req.end_address) or (0.0, 0.0)
+    # Skip duplicate API call when end == start (common: round trips). Cache key would match anyway,
+    # but bypassing entirely avoids the lookup overhead and a rare cache miss edge case.
+    if req.end_address.strip().lower() == req.start_address.strip().lower():
+        end_coords = start_coords
+    else:
+        end_coords = await asyncio.to_thread(geo.geocode, req.end_address) or (0.0, 0.0)
 
+    # Deduplicate waypoint geocoding within this request: same address typed twice = 1 API call.
+    addr_coords_cache: dict[str, tuple[float, float]] = {}
     waypoints: list[dict] = []
     for wp in req.waypoints:
         wp_dict = wp.model_dump()
         if wp_dict.get("latitude") is None or wp_dict.get("longitude") is None:
-            coords = await asyncio.to_thread(geo.geocode, wp_dict["address"])
+            addr = wp_dict["address"]
+            key = addr.strip().lower()
+            coords = addr_coords_cache.get(key)
+            if coords is None:
+                coords = await asyncio.to_thread(geo.geocode, addr)
+                if coords:
+                    addr_coords_cache[key] = coords
             if coords:
                 wp_dict["latitude"], wp_dict["longitude"] = coords
         waypoints.append(wp_dict)
 
-    optimized_indices, distance = OrToolsService.optimize_tsp(waypoints, start_coords, end_coords)
-    optimized_waypoints = [waypoints[i] for i in optimized_indices]
+    # Split by priority: P1/P2/P3 fixed first, P0 optimized
+    fixed = sorted([wp for wp in waypoints if wp.get("priority", 0) > 0],
+                   key=lambda w: w["priority"])
+    free = [wp for wp in waypoints if wp.get("priority", 0) == 0]
+
+    if free:
+        free_indices, free_dist = OrToolsService.optimize_tsp(free, start_coords, end_coords)
+        optimized_free = [free[i] for i in free_indices]
+    else:
+        optimized_free = []
+        free_dist = 0.0
+
+    optimized_waypoints = fixed + optimized_free
+
+    # Recalculate total distance over the full ordered sequence
+    all_points = ([start_coords] +
+                  [(wp["latitude"], wp["longitude"]) for wp in optimized_waypoints
+                   if wp.get("latitude") and wp.get("longitude")] +
+                  [end_coords])
+    if len(all_points) > 1 and all(c and c != (0.0, 0.0) for c in [start_coords, end_coords]):
+        distance = sum(
+            OrToolsService.haversine(all_points[i][0], all_points[i][1],
+                                     all_points[i+1][0], all_points[i+1][1])
+            for i in range(len(all_points) - 1)
+        )
+    else:
+        distance = free_dist
 
     capped = optimized_waypoints[: settings.max_waypoints]
-    all_addresses = [req.start_address] + [wp["address"] for wp in capped] + [req.end_address]
-    encoded = [quote(a, safe="") for a in all_addresses]
-    maps_url = "https://www.google.com/maps/dir/" + "/".join(encoded)
 
-    # distance is in km; minutes = distance / avg_speed_kmh * 60
-    duration_minutes = (distance / settings.avg_speed_kmh) * 60.0 if distance else 0.0
-    cost = OrToolsService.estimate_cost(distance)
+    def _maps_pt(lat, lng, fallback_address: str) -> str:
+        if lat and lng and (lat, lng) != (0.0, 0.0):
+            return f"{round(float(lat), 6)},{round(float(lng), 6)}"
+        return quote(fallback_address, safe="")
 
-    # Deduct credits after successful optimization
+    start_pt = _maps_pt(start_coords[0], start_coords[1], req.start_address)
+    end_pt = _maps_pt(end_coords[0], end_coords[1], req.end_address)
+    wp_pts = [_maps_pt(wp.get("latitude"), wp.get("longitude"), wp["address"]) for wp in capped]
+
+    # Use ?api=1 format (supports avoid=tolls) when ≤ 8 intermediate waypoints.
+    # Fall back to path format with coordinates for larger routes (shorter URL, no ambiguity).
+    if req.avoid_tolls and len(wp_pts) <= 8:
+        wps_param = "%7C".join(wp_pts)
+        maps_url = (
+            f"https://www.google.com/maps/dir/?api=1"
+            f"&origin={start_pt}&destination={end_pt}"
+            f"&waypoints={wps_param}"
+            f"&avoid=tolls&travelmode=driving"
+        )
+    else:
+        maps_url = "https://www.google.com/maps/dir/" + "/".join([start_pt] + wp_pts + [end_pt])
+
+    # Apply road-distance factor: haversine underestimates real road km.
+    # Factor only affects displayed values + cost; OR-Tools ordering uses raw haversine (unaffected).
+    display_distance = distance * OrToolsService.ROAD_DISTANCE_FACTOR
+
+    speed_kmh = OrToolsService.get_speed_kmh(req.vehicle_type)
+    duration_minutes = (display_distance / speed_kmh) * 60.0 if display_distance else 0.0
+    breakdown = OrToolsService.estimate_cost_breakdown(
+        display_distance,
+        req.vehicle_type,
+        fuel_price=req.fuel_price,
+        fuel_consumption=req.fuel_consumption,
+        axle_count=req.axle_count or 2,
+    )
+
+    # DailyUsage already incremented in _check_and_reserve_usage (single SELECT for both check + write).
+    route_id = None
     try:
-        current_user.credits -= CREDIT_COST_OPTIMIZE
+        db_route = Route(
+            user_id=current_user.id,
+            name=f"Rota {datetime.now().strftime('%d/%m %H:%M')}",
+            optimization_type=req.optimization_type,
+            start_address=req.start_address,
+            end_address=req.end_address,
+            waypoints=[wp.model_dump() for wp in req.waypoints],
+            optimized_waypoints=optimized_waypoints,
+            google_maps_url=maps_url,
+            total_distance_km=round(display_distance, 2),
+            total_duration_minutes=round(duration_minutes, 2),
+            cost_estimate=breakdown["total"],
+        )
+        db.add(db_route)
         db.commit()
+        db.refresh(db_route)
+        route_id = db_route.id
     except Exception as exc:
         db.rollback()
-        logger.exception("Failed to deduct credits for user %s: %s", current_user.email, exc)
+        logger.exception("Failed to save route / deduct credits for user %s: %s", current_user.email, exc)
 
-    return OptimizeRouteResponse(
+    result = OptimizeRouteResponse(
         optimized_waypoints=optimized_waypoints,
         google_maps_url=maps_url,
-        total_distance_km=round(distance, 2),
+        total_distance_km=round(display_distance, 2),
         total_duration_minutes=round(duration_minutes, 2),
-        cost_estimate=round(cost, 2),
+        cost_estimate=breakdown["total"],
+        fuel_estimate=breakdown["fuel"],
+        toll_estimate=breakdown["toll"],
+        start_address=req.start_address,
+        end_address=req.end_address,
     )
+    result.route_id = route_id
+    return result
+
+
+@router.get("/autocomplete")
+async def autocomplete_address(
+    q: str = Query(..., min_length=2),
+    settings=Depends(get_settings),
+):
+    """Autocomplete address using Google Geocoding API."""
+    if not q.strip():
+        return []
+
+    geo = GeocodingService(settings.google_maps_api_key)
+    try:
+        # Use Google Geocoding to search for matching addresses
+        # Returns up to 5 suggestions
+        results = geo.search(q.strip())
+        return [{"address": addr} for addr in results[:5]]
+    except Exception as exc:
+        logger.warning("Autocomplete failed for query %r: %s", q, exc)
+        return []
 
 
 @router.get("/history", response_model=list[RouteResponse])
@@ -228,3 +402,49 @@ async def save_route(
         )
 
     return RouteResponse.model_validate(db_route)
+
+
+@router.post("/{route_id}/share", response_model=ShareRouteResponse, status_code=status.HTTP_201_CREATED)
+async def share_route(
+    route_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a public share link for a route."""
+    stmt = select(Route).where(Route.id == route_id, Route.user_id == current_user.id)
+    route = db.execute(stmt).scalars().first()
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found",
+        )
+
+    # Check if route already shared
+    stmt_shared = select(SharedRoute).where(
+        SharedRoute.route_id == route_id,
+        SharedRoute.user_id == current_user.id,
+    )
+    shared = db.execute(stmt_shared).scalars().first()
+    if shared:
+        return ShareRouteResponse.model_validate(shared)
+
+    # Create new share
+    share_token = uuid.uuid4().hex
+    db_shared = SharedRoute(
+        route_id=route_id,
+        user_id=current_user.id,
+        share_token=share_token,
+    )
+    db.add(db_shared)
+    try:
+        db.commit()
+        db.refresh(db_shared)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to create share for route %s: %s", route_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create share link",
+        )
+
+    return ShareRouteResponse.model_validate(db_shared)

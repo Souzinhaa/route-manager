@@ -5,11 +5,37 @@ from datetime import datetime
 
 OptimizationType = Literal["tsp", "vrp"]
 
+PlanTypeStr = Literal[
+    "tester", "basic", "starter", "delivery", "premium",
+    "enterprise", "enterprise_medio", "enterprise_avancado", "enterprise_custom"
+]
+PlanStatusStr = Literal["trial", "active", "pending", "cancelled"]
+BillingTypeStr = Literal["CREDIT_CARD", "PIX", "BOLETO"]
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
+
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=120)
+    cpf_cnpj: str = Field(..., min_length=11, max_length=14, description="CPF (11 dígitos) ou CNPJ (14 dígitos)")
+    lgpd_consent: bool = Field(..., description="Consentimento LGPD obrigatório")
+
+    @field_validator("cpf_cnpj")
+    @classmethod
+    def validate_cpf_cnpj(cls, v: str) -> str:
+        digits = "".join(c for c in v if c.isdigit())
+        if len(digits) not in (11, 14):
+            raise ValueError("CPF deve ter 11 dígitos ou CNPJ 14 dígitos")
+        return digits
 
 
 class UserLogin(BaseModel):
@@ -23,15 +49,66 @@ class UserResponse(BaseModel):
     full_name: str
     is_active: bool
     credits: float
+    plan: str = "tester"
+    plan_status: str = "trial"
+    trial_expires_at: Optional[datetime] = None
+    is_admin: bool = False
+    routes_used_today: int = 0
+    max_stops: int = 20
     created_at: datetime
+    cpf_cnpj: Optional[str] = None
+    is_onboarding: bool = True
+    coupon_code: Optional[str] = None
+    partner_name: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
+class AdminUserPatch(BaseModel):
+    plan: Optional[PlanTypeStr] = None
+    plan_status: Optional[PlanStatusStr] = None
+    subscription_id: Optional[str] = None
+    trial_expires_at: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+class PlanInfo(BaseModel):
+    key: str
+    name: str
+    tier: str
+    routes_per_day: int
+    max_stops: int
+    price_full: float
+    price_coupon: float
+    price_onboarding: float
+
+
+class SubscribeRequest(BaseModel):
+    plan: PlanTypeStr
+    billing_type: BillingTypeStr = "PIX"
+    cpf_cnpj: Optional[str] = None
+    coupon_code: Optional[str] = None
+
+
+class SubscriptionResponse(BaseModel):
+    subscription_id: str
+    plan: str
+    plan_status: str
+    payment_url: Optional[str] = None
+
+
+class AsaasWebhookPayload(BaseModel):
+    event: str
+    payment: Optional[dict] = None
+    subscription: Optional[dict] = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    csrf_token: str = ""
     user: UserResponse
 
 
@@ -39,6 +116,7 @@ class Waypoint(BaseModel):
     address: str = Field(min_length=1, max_length=500)
     latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
     longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
+    priority: int = Field(default=0, ge=0)
 
 
 class RouteCreate(BaseModel):
@@ -80,9 +158,14 @@ class UploadResponse(BaseModel):
 
 class OptimizeRouteRequest(BaseModel):
     optimization_type: OptimizationType = "tsp"
+    vehicle_type: Literal["moto", "leve", "pesado"] = "leve"
     start_address: str = Field(min_length=1, max_length=500)
     end_address: str = Field(min_length=1, max_length=500)
     waypoints: List[Waypoint] = Field(max_length=500)
+    avoid_tolls: bool = True
+    fuel_price: Optional[float] = Field(default=None, ge=0)
+    fuel_consumption: Optional[float] = Field(default=None, gt=0)
+    axle_count: Optional[int] = Field(default=2, ge=2, le=9)
 
     @field_validator("waypoints")
     @classmethod
@@ -98,3 +181,164 @@ class OptimizeRouteResponse(BaseModel):
     total_distance_km: float
     total_duration_minutes: float
     cost_estimate: float
+    fuel_estimate: float = 0.0
+    toll_estimate: float = 0.0
+    start_address: str = ""
+    end_address: str = ""
+    route_id: Optional[int] = None
+
+
+class CouponValidateRequest(BaseModel):
+    code: str
+
+
+class CouponValidateResponse(BaseModel):
+    valid: bool
+    partner_name: Optional[str] = None
+    applies_discount: bool = True
+
+
+class PartnerCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    contact_email: Optional[str] = None
+    phone: Optional[str] = Field(default=None, max_length=20)
+    cpf_cnpj: Optional[str] = Field(default=None, max_length=18)
+    pix_key: Optional[str] = Field(default=None, max_length=200)
+
+
+class PartnerPatch(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    contact_email: Optional[str] = None
+    phone: Optional[str] = Field(default=None, max_length=20)
+    cpf_cnpj: Optional[str] = Field(default=None, max_length=18)
+    pix_key: Optional[str] = Field(default=None, max_length=200)
+    is_active: Optional[bool] = None
+
+
+class PartnerResponse(BaseModel):
+    id: int
+    name: str
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    cpf_cnpj: Optional[str] = None
+    pix_key: Optional[str] = None
+    pix_key_type: Optional[str] = None
+    access_token: Optional[str] = None
+    commission_balance: float
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PartnerPortalUser(BaseModel):
+    email: str
+    plan: str
+    plan_status: str
+
+
+class PartnerPortalResponse(BaseModel):
+    id: int
+    name: str
+    commission_balance: float
+    pix_key: Optional[str] = None
+    pix_key_type: Optional[str] = None
+    active_users: List[PartnerPortalUser]
+    total_earned: float
+
+
+class PayoutConfigResponse(BaseModel):
+    payout_day: int
+    auto_enabled: bool
+    last_run_month: Optional[str] = None
+
+
+class PayoutConfigPatch(BaseModel):
+    payout_day: Optional[int] = Field(default=None, ge=1, le=28)
+    auto_enabled: Optional[bool] = None
+
+
+class CouponCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    partner_id: int
+
+
+class CouponResponse(BaseModel):
+    id: int
+    code: str
+    partner_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionResponse(BaseModel):
+    id: int
+    user_id: int
+    plan: str
+    amount_paid: float
+    full_price: float
+    commission_amount: float
+    coupon_used: bool
+    coupon_id: Optional[int] = None
+    partner_id: Optional[int] = None
+    asaas_payment_id: str
+    event_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PlanConfigPatch(BaseModel):
+    price_full: Optional[float] = Field(default=None, ge=0)
+    price_coupon: Optional[float] = Field(default=None, ge=0)
+    price_onboarding: Optional[float] = Field(default=None, ge=0)
+    has_onboarding_discount: Optional[bool] = None
+    routes_per_day: Optional[int] = Field(default=None, ge=-1)
+    max_stops: Optional[int] = Field(default=None, ge=-1)
+
+
+class PlanConfigResponse(BaseModel):
+    key: str
+    name: str
+    tier: str
+    price_full: float
+    price_coupon: float
+    price_onboarding: float
+    has_onboarding_discount: bool
+    routes_per_day: int
+    max_stops: int
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ShareRouteResponse(BaseModel):
+    share_token: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedRouteView(BaseModel):
+    id: int
+    name: str
+    optimization_type: str
+    start_address: str
+    end_address: str
+    waypoints: List[dict]
+    optimized_waypoints: Optional[List[dict]] = None
+    google_maps_url: Optional[str] = None
+    total_distance_km: Optional[float] = None
+    total_duration_minutes: Optional[float] = None
+    cost_estimate: Optional[float] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

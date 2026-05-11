@@ -107,7 +107,55 @@ class OrToolsService:
         wp_order = [node - 1 for node in route_nodes[1:-1]]
         return wp_order, total_m / 1000.0
 
+    # Realistic average urban speeds (km/h) with traffic, not free-flow.
+    # Real-world avg in Brazilian cities: leve ~30-35, moto ~40-50, pesado ~20-25.
+    _SPEED_KMH = {"moto": 45.0, "leve": 35.0, "pesado": 22.0}
+    _COST_PER_KM = {"moto": 0.25, "leve": 0.50, "pesado": 1.20}
+    _TOLL_PER_PLAZA = {"moto": 2.50, "leve": 5.00, "pesado": 5.00}
+
+    # Haversine (straight-line) underestimates road distance.
+    # Urban Brazil circuity factor ~1.35 converts crow-fly → road distance for display/costs.
+    # OR-Tools optimization uses raw haversine (relative distances unchanged, ordering unaffected).
+    ROAD_DISTANCE_FACTOR = 1.35
+
     @staticmethod
-    def estimate_cost(distance_km: float, vehicle_type: str = "van") -> float:
-        cost_per_km = {"car": 0.5, "van": 0.8, "truck": 1.2}
-        return distance_km * cost_per_km.get(vehicle_type, 0.8)
+    def get_speed_kmh(vehicle_type: str = "leve") -> float:
+        return OrToolsService._SPEED_KMH.get(vehicle_type, 35.0)
+
+    @staticmethod
+    def estimate_toll(distance_km: float, vehicle_type: str = "leve", axle_count: int = 2) -> float:
+        """Estimate toll: ~1 plaza per 50 km. Pesado scales by axle pairs."""
+        plazas = int(distance_km // 50)
+        if plazas == 0:
+            return 0.0
+        rate = OrToolsService._TOLL_PER_PLAZA.get(vehicle_type, 5.00)
+        if vehicle_type == "pesado":
+            return plazas * rate * math.ceil(max(axle_count, 2) / 2)
+        return plazas * rate
+
+    @staticmethod
+    def estimate_fuel(distance_km: float, fuel_price: float | None, fuel_consumption: float | None) -> float:
+        """Real fuel cost when user provides price + consumption (km/L); else 0."""
+        if not fuel_price or not fuel_consumption or fuel_consumption <= 0:
+            return 0.0
+        return (distance_km / fuel_consumption) * fuel_price
+
+    @staticmethod
+    def estimate_cost(distance_km: float, vehicle_type: str = "leve") -> float:
+        cost = OrToolsService._COST_PER_KM.get(vehicle_type, 0.50)
+        return distance_km * cost
+
+    @staticmethod
+    def estimate_cost_breakdown(
+        distance_km: float,
+        vehicle_type: str = "leve",
+        fuel_price: float | None = None,
+        fuel_consumption: float | None = None,
+        axle_count: int = 2,
+    ) -> dict:
+        """Cost breakdown: fuel, toll, total. Falls back to flat per-km when fuel inputs missing."""
+        toll = OrToolsService.estimate_toll(distance_km, vehicle_type, axle_count)
+        fuel = OrToolsService.estimate_fuel(distance_km, fuel_price, fuel_consumption)
+        if fuel == 0.0:
+            fuel = OrToolsService.estimate_cost(distance_km, vehicle_type)
+        return {"fuel": round(fuel, 2), "toll": round(toll, 2), "total": round(fuel + toll, 2)}

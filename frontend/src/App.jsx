@@ -1,35 +1,122 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { authService } from './services/api'
 import ErrorBoundary from './components/ErrorBoundary'
+import PlanBanner from './components/PlanBanner'
+import PaymentWallModal, { getBlockReason } from './components/PaymentWallModal'
+import rmLogo from '../assets/rm-logo.png'
+
+// Eager: critical above-the-fold and auth flows. Bundled in main entry.
+import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
-import Upload from './pages/Upload'
-import Results from './pages/Results'
+
+// Lazy: secondary pages loaded on-demand. Cuts initial bundle size for first paint.
+const Upload = lazy(() => import('./pages/Upload'))
+const Results = lazy(() => import('./pages/Results'))
+const SharedRoute = lazy(() => import('./pages/SharedRoute'))
+const Plans = lazy(() => import('./pages/Plans'))
+const Admin = lazy(() => import('./pages/Admin'))
+const PartnerPortal = lazy(() => import('./pages/PartnerPortal'))
+const TermosDeUso = lazy(() => import('./pages/TermosDeUso'))
+const PoliticaDePrivacidade = lazy(() => import('./pages/PoliticaDePrivacidade'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+
+function isPaymentWallExempt(pathname) {
+  if (['/', '/login', '/register', '/plans', '/termos-de-uso', '/politica-de-privacidade', '/forgot-password', '/reset-password'].includes(pathname)) {
+    return true
+  }
+  if (pathname.startsWith('/shared/')) {
+    return true
+  }
+  return false
+}
+
+function PaymentWallGuard({ user, onDowngrade }) {
+  const location = useLocation()
+  if (!user || user.is_admin) return null
+  if (isPaymentWallExempt(location.pathname)) return null
+  if (!getBlockReason(user)) return null
+  return <PaymentWallModal user={user} onDowngrade={onDowngrade} />
+}
+
+const PLAN_LIMITS = {
+  tester:              { routes_per_day: 1 },
+  basic:               { routes_per_day: 1 },
+  starter:             { routes_per_day: 3 },
+  delivery:            { routes_per_day: 5 },
+  premium:             { routes_per_day: 10 },
+  enterprise:          { routes_per_day: -1 },
+  enterprise_medio:    { routes_per_day: 50 },
+  enterprise_avancado: { routes_per_day: 100 },
+  enterprise_custom:   { routes_per_day: -1 },
+}
+
+function RoutesRemainingBadge({ user }) {
+  if (user?.is_admin) {
+    return (
+      <span style={{ fontSize: '0.75rem', color: 'var(--text-2)' }}>
+        rotas: <strong style={{ color: '#34d399' }}>∞</strong>
+      </span>
+    )
+  }
+
+  const plan = user?.plan || 'tester'
+  const limit = PLAN_LIMITS[plan]?.routes_per_day ?? 1
+  const used = user?.routes_used_today ?? 0
+
+  if (limit === -1) {
+    return (
+      <span style={{ fontSize: '0.75rem', color: 'var(--text-2)' }}>
+        rotas: <strong style={{ color: '#34d399' }}>∞</strong>
+      </span>
+    )
+  }
+
+  const remaining = Math.max(0, limit - used)
+  const isLow = remaining <= 1
+  return (
+    <span style={{ fontSize: '0.75rem', color: 'var(--text-2)' }}>
+      rotas hoje:{' '}
+      <strong style={{ color: isLow ? '#f87171' : 'var(--primary-light)' }}>
+        {remaining}/{limit}
+      </strong>
+    </span>
+  )
+}
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [navOpen, setNavOpen] = useState(false)
 
   const handleLogout = useCallback(async () => {
-    try { await authService.logout() } catch (_) { /* cookie cleared server-side */ }
+    try { await authService.logout() } catch (_) { /* ignore */ }
     setUser(null)
+    setNavOpen(false)
+  }, [])
+
+  const handleDowngrade = useCallback(() => {
+    authService.getCurrentUser()
+      .then(res => setUser(res.data))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
-    // Token lives in httpOnly cookie — just ask /me; no localStorage needed.
     authService.getCurrentUser()
       .then(res => setUser(res.data))
-      .catch(() => { /* not authenticated */ })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  // 401 interceptor in api.js fires this event when any request gets unauthorized
   useEffect(() => {
     window.addEventListener('auth:logout', handleLogout)
     return () => window.removeEventListener('auth:logout', handleLogout)
   }, [handleLogout])
+
+  const closeNav = () => setNavOpen(false)
 
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>
@@ -38,48 +125,110 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div>
+        <PaymentWallGuard user={user} onDowngrade={handleDowngrade} />
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          {/* ── Header ── */}
           <header className="header">
-            <div className="container">
-              <h1>🚚 Route Manager</h1>
-              {user && (
-                <nav>
-                  <Link to="/dashboard">Dashboard</Link>
-                  <Link to="/upload">Upload NFE</Link>
-                  <span style={{ marginRight: '20px' }}>
-                    {user.full_name} (Credits: {user.credits})
-                  </span>
-                  <button onClick={handleLogout} style={{
-                    background: '#dc3545',
-                    padding: '8px 16px',
-                    marginRight: 0
-                  }}>
-                    Logout
+            <div className="header-inner">
+              <Link to={user ? '/dashboard' : '/'} className="header-logo" onClick={closeNav}>
+                <img src={rmLogo} alt="Routerizador" className="header-logo-icon" />
+                <span className="header-logo-text">Roteiri<span>zador</span></span>
+              </Link>
+
+              {user ? (
+                <>
+                  {/* Desktop nav — logged in */}
+                  <nav className="header-nav-desktop">
+                    <Link to="/dashboard">Painel</Link>
+                    <Link to="/upload">Importar NFe</Link>
+                    <Link to="/plans">Planos</Link>
+                    {user.is_admin && <Link to="/admin" style={{ color: '#f59e0b', fontWeight: 700 }}>Admin</Link>}
+                    <span className="header-user-info">
+                      {user.full_name}
+                      <span style={{ marginLeft: 6, fontSize: '0.7rem', background: user.plan && user.plan !== 'tester' ? 'rgba(37,99,235,0.2)' : 'rgba(16,185,129,0.15)', color: user.plan && user.plan !== 'tester' ? 'var(--primary-light)' : '#34d399', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>
+                        {user.plan && user.plan !== 'tester' ? user.plan : 'TRIAL'}
+                      </span>
+                      <RoutesRemainingBadge user={user} />
+                    </span>
+                    <button className="header-logout-btn" onClick={handleLogout}>Sair</button>
+                  </nav>
+
+                  {/* Hamburger — mobile only */}
+                  <button
+                    className="header-hamburger"
+                    onClick={() => setNavOpen(o => !o)}
+                    aria-label={navOpen ? 'Fechar menu' : 'Abrir menu'}
+                    aria-expanded={navOpen}
+                  >
+                    {navOpen ? '✕' : '☰'}
                   </button>
+                </>
+              ) : (
+                /* Guest nav */
+                <nav className="header-nav-guest">
+                  <Link to="/login" className="btn-ghost">Entrar</Link>
+                  <Link to="/register" className="btn-cta">Criar Conta</Link>
                 </nav>
               )}
             </div>
+
+            {/* Mobile dropdown — logged in only */}
+            {user && navOpen && (
+              <nav className="header-nav-mobile">
+                <Link to="/dashboard" onClick={closeNav}>Painel</Link>
+                <Link to="/upload" onClick={closeNav}>Importar NFe</Link>
+                <Link to="/plans" onClick={closeNav}>Planos</Link>
+                {user.is_admin && <Link to="/admin" onClick={closeNav} style={{ color: '#f59e0b', fontWeight: 700 }}>Admin</Link>}
+                <div className="mobile-nav-user">
+                  {user.full_name} · <RoutesRemainingBadge user={user} />
+                </div>
+                <button className="mobile-nav-logout" onClick={handleLogout}>Sair</button>
+              </nav>
+            )}
           </header>
 
-          <div className="container">
-            <Routes>
-              <Route path="/login" element={<Login setUser={setUser} />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-                path="/dashboard"
-                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/upload"
-                element={user ? <Upload user={user} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/results"
-                element={user ? <Results user={user} /> : <Navigate to="/login" />}
-              />
-              <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
-            </Routes>
-          </div>
+          {/* ── Plan banner (logged in only) ── */}
+          {user && <PlanBanner user={user} />}
+
+          {/* ── Page content ── */}
+          <main style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
+            <Suspense fallback={<div className="loading"><div className="spinner"></div></div>}>
+              <Routes>
+                <Route path="/termos-de-uso" element={<TermosDeUso />} />
+                <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
+                <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home />} />
+                <Route path="/login" element={<Login setUser={setUser} />} />
+                <Route path="/register" element={<Register setUser={setUser} />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/plans" element={<Plans user={user} />} />
+                <Route
+                  path="/admin"
+                  element={user?.is_admin ? <Admin /> : <Navigate to="/dashboard" />}
+                />
+                <Route
+                  path="/dashboard"
+                  element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/upload"
+                  element={user ? <Upload user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/results"
+                  element={user ? <Results user={user} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/parceiro/:token"
+                  element={<PartnerPortal />}
+                />
+                <Route
+                  path="/shared/:shareToken"
+                  element={<SharedRoute />}
+                />
+              </Routes>
+            </Suspense>
+          </main>
         </div>
       </Router>
     </ErrorBoundary>

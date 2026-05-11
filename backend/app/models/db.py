@@ -1,10 +1,29 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, JSON, Enum
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Float, Boolean, JSON, Enum, UniqueConstraint, Numeric, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import enum
 
 Base = declarative_base()
+
+
+class PlanType(str, enum.Enum):
+    TESTER = "tester"
+    BASIC = "basic"
+    STARTER = "starter"
+    DELIVERY = "delivery"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+    ENTERPRISE_MEDIO = "enterprise_medio"
+    ENTERPRISE_AVANCADO = "enterprise_avancado"
+    ENTERPRISE_CUSTOM = "enterprise_custom"
+
+
+class PlanStatus(str, enum.Enum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
 
 
 class User(Base):
@@ -18,6 +37,19 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     credits = Column(Float, default=0.0)
+    asaas_customer_id = Column(String, nullable=True)
+    plan = Column(String, default=PlanType.TESTER)
+    subscription_id = Column(String, nullable=True)
+    plan_status = Column(String, default=PlanStatus.TRIAL)
+    trial_expires_at = Column(DateTime, nullable=True)
+    is_admin = Column(Boolean, default=False)
+    lgpd_consent_at = Column(DateTime, nullable=True)
+    lgpd_consent_ip = Column(String, nullable=True)
+    cpf_cnpj = Column(String, nullable=True, unique=True)
+    deleted_at = Column(DateTime, nullable=True)
+    is_onboarding = Column(Boolean, default=True)
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
+    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
 
 
 class RouteOptimizationType(str, enum.Enum):
@@ -68,6 +100,99 @@ class PaymentTransaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DailyUsage(Base):
+    __tablename__ = "daily_usage"
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_user_date"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    date = Column(Date, nullable=False)
+    routes_used = Column(Integer, default=0)
+
+
+class ProcessedWebhook(Base):
+    __tablename__ = "processed_webhooks"
+
+    event_id = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Partner(Base):
+    __tablename__ = "partners"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    contact_email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    cpf_cnpj = Column(String, nullable=True)
+    pix_key = Column(String, nullable=True)
+    pix_key_type = Column(String, nullable=True)
+    access_token = Column(String, unique=True, nullable=True)
+    commission_balance = Column(Numeric(12, 2), default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PayoutConfig(Base):
+    __tablename__ = "payout_config"
+
+    id = Column(Integer, primary_key=True)
+    payout_day = Column(Integer, default=5, nullable=False)
+    auto_enabled = Column(Boolean, default=False, nullable=False)
+    last_run_month = Column(String(7), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, nullable=False)
+    partner_id = Column(Integer, ForeignKey("partners.id", ondelete="SET NULL"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    plan = Column(String, nullable=False)
+    amount_paid = Column(Numeric(12, 2), nullable=False)
+    full_price = Column(Numeric(12, 2), nullable=False)
+    commission_amount = Column(Numeric(12, 2), default=0)
+    coupon_used = Column(Boolean, default=False)
+    coupon_id = Column(Integer, nullable=True)
+    partner_id = Column(Integer, nullable=True, index=True)
+    asaas_payment_id = Column(String, unique=True, nullable=False)
+    event_type = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SharedRoute(Base):
+    __tablename__ = "shared_routes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_id = Column(Integer, ForeignKey("routes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    share_token = Column(String, unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PlanConfig(Base):
+    __tablename__ = "plan_configs"
+
+    key = Column(String, primary_key=True)
+    price_full = Column(Numeric(10, 2), nullable=False)
+    price_coupon = Column(Numeric(10, 2), nullable=False)
+    price_onboarding = Column(Numeric(10, 2), nullable=False)
+    has_onboarding_discount = Column(Boolean, default=True, nullable=False)
+    routes_per_day = Column(Integer, nullable=False)
+    max_stops = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def get_db_url(settings):
     return settings.resolved_database_url
 
@@ -76,8 +201,9 @@ def get_engine(settings):
     return create_engine(
         get_db_url(settings),
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10
+        pool_size=10,
+        max_overflow=10,
+        pool_recycle=3600,
     )
 
 

@@ -1,9 +1,14 @@
+import logging
+from datetime import date
+
 from fastapi import Depends, HTTPException, Header, Request, status
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from sqlalchemy import select
 from app.config import get_settings
-from app.models.db import get_engine, get_session_local, User
+from app.models.db import get_engine, get_session_local, DailyUsage, User
+
+logger = logging.getLogger(__name__)
 
 _settings = get_settings()
 _engine = get_engine(_settings)
@@ -31,6 +36,16 @@ def get_current_user(
             token = authorization[7:]
 
     if not token:
+        # Debug-only: missing-token logging is high-frequency on public endpoints and
+        # noisy in production logs. Keep concise warning level for triage; full headers only when DEBUG.
+        if settings.debug:
+            logger.info(
+                "[auth] No token. cookies=%s origin=%s host=%s scheme=%s",
+                list(request.cookies.keys()),
+                request.headers.get("origin"),
+                request.headers.get("host"),
+                request.url.scheme,
+            )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
@@ -38,7 +53,8 @@ def get_current_user(
         email: str = payload.get("sub")
         if email is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
+    except JWTError as exc:
+        logger.warning("[auth] JWT decode failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid token")
 
     stmt = select(User).where(User.email == email)
@@ -47,3 +63,19 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
 
     return user
+
+
+def get_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+def get_routes_used_today(user_id: int, db: Session) -> int:
+    today = date.today()
+    usage = db.execute(
+        select(DailyUsage).where(DailyUsage.user_id == user_id, DailyUsage.date == today)
+    ).scalars().first()
+    return usage.routes_used if usage else 0

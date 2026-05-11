@@ -1,205 +1,1042 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { routeService } from '../services/api'
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { routeService, authService } from '../services/api'
+import { fetchCepData, buildAddressFromCepData } from '../components/CepInput'
 
-function Dashboard({ user }) {
+const VEHICLES = [
+  { id: 'moto',   icon: '🏍️', label: 'Moto' },
+  { id: 'leve',   icon: '🚗', label: 'Leve' },
+  { id: 'pesado', icon: '🚛', label: 'Pesado' },
+]
+
+// ATM-style masks: user types digits only
+function applyPriceMask(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const n = parseInt(digits, 10)
+  const reais = Math.floor(n / 100)
+  const centavos = n % 100
+  return `${reais},${String(centavos).padStart(2, '0')}`
+}
+
+function applyConsumptionMask(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const n = parseInt(digits, 10)
+  return `${Math.floor(n / 10)},${n % 10}`
+}
+
+function parseMasked(str) {
+  if (!str) return null
+  const parsed = parseFloat(str.replace(',', '.'))
+  return isNaN(parsed) ? null : parsed
+}
+
+async function resolveAddress(val) {
+  const digits = val.replace(/\D/g, '')
+  if (digits.length === 8) {
+    const data = await fetchCepData(digits)
+    if (data) return buildAddressFromCepData(data)
+  }
+  return val
+}
+
+const AUTOCOMPLETE_DEBOUNCE_MS = 400
+
+/* ── Address field with CEP + number + autocomplete ── */
+function AddressField({ label, value, onChange, placeholder }) {
+  const [cep, setCep] = useState('')
+  const [number, setNumber] = useState('')
+  const [cepData, setCepData] = useState(null)
+  const [cepStatus, setCepStatus] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false)
+  const numberInputRef = useRef(null)
+  const autocompleteTimer = useRef(null)
+  const autocompleteAbort = useRef(null)
+
+  // Cleanup pending autocomplete on unmount: avoid setState on unmounted component + cancel in-flight request.
+  useEffect(() => () => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+  }, [])
+
+  const needsNumber = cepStatus === 'ok' && !number.trim()
+
+  const handleCepChange = async (e) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
+    const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
+    setCep(formatted)
+    setCepStatus(null)
+    setCepData(null)
+    if (raw.length === 8) {
+      setCepStatus('loading')
+      const data = await fetchCepData(raw)
+      if (data) {
+        setCepData(data)
+        setCepStatus('ok')
+        onChange(buildAddressFromCepData(data, number))
+        if (!number.trim()) setTimeout(() => numberInputRef.current?.focus(), 0)
+      } else {
+        setCepStatus('err')
+      }
+    }
+  }
+
+  const handleNumberChange = (e) => {
+    const num = e.target.value
+    setNumber(num)
+    if (cepData) {
+      onChange(buildAddressFromCepData(cepData, num))
+    }
+  }
+
+  const handleAddressChange = (e) => {
+    const val = e.target.value
+    onChange(val)
+    setCepStatus(null)
+    setCepData(null)
+
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+
+    if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+      setAutocompleteLoading(true)
+      setShowSuggestions(true)
+      autocompleteTimer.current = setTimeout(async () => {
+        autocompleteAbort.current = new AbortController()
+        try {
+          const res = await routeService.autocompleteAddress(val, autocompleteAbort.current.signal)
+          setSuggestions(res.data || [])
+        } catch (err) {
+          if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') setSuggestions([])
+        } finally {
+          setAutocompleteLoading(false)
+        }
+      }, AUTOCOMPLETE_DEBOUNCE_MS)
+    } else {
+      setAutocompleteLoading(false)
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelectSuggestion = (address) => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+    onChange(address)
+    setSuggestions([])
+    setShowSuggestions(false)
+    setTimeout(() => numberInputRef.current?.focus(), 0)
+  }
+
+  return (
+    <div className="form-group">
+      <label>{label}</label>
+      <div className="cep-row" style={{ marginBottom: 6 }}>
+        <input
+          type="text"
+          value={cep}
+          onChange={handleCepChange}
+          placeholder="CEP"
+          inputMode="numeric"
+          style={{ minWidth: 0, flex: '1.2', maxWidth: 110 }}
+          maxLength={9}
+        />
+        <input
+          ref={numberInputRef}
+          type="text"
+          value={number}
+          onChange={handleNumberChange}
+          placeholder="Nº"
+          inputMode="numeric"
+          style={{
+            minWidth: 0, flex: 0.8, maxWidth: 70,
+            borderColor: needsNumber ? 'var(--warning, #f59e0b)' : undefined,
+          }}
+          maxLength={10}
+        />
+        {cepStatus === 'loading' && (
+          <span className="cep-status" style={{ color: 'var(--gray-400)' }}>Buscando...</span>
+        )}
+        {cepStatus === 'ok' && !needsNumber && (
+          <span className="cep-status" style={{ color: 'var(--success)' }}>Encontrado</span>
+        )}
+        {needsNumber && (
+          <span className="cep-status" style={{ color: 'var(--warning, #f59e0b)' }}>Digite o nº</span>
+        )}
+        {cepStatus === 'err' && (
+          <span className="cep-status" style={{ color: 'var(--danger)' }}>CEP inválido</span>
+        )}
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={value}
+          onChange={handleAddressChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder={placeholder || 'Ou digite o endereço completo'}
+        />
+        {showSuggestions && (suggestions.length > 0 || autocompleteLoading) && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+            background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+            borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 200, overflowY: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}>
+            {autocompleteLoading ? (
+              <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.85rem' }}>
+                Buscando...
+              </div>
+            ) : (
+              suggestions.map((sugg, i) => (
+                <div
+                  key={i}
+                  onMouseDown={() => handleSelectSuggestion(sugg.address)}
+                  style={{
+                    padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-1)', fontSize: '0.85rem', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {sugg.address}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Single waypoint row ── */
+const WaypointRow = React.memo(function WaypointRow({ wp, index, onChange, onRemove, numberInputRef }) {
+  const [cep, setCep] = useState('')
+  const [number, setNumber] = useState('')
+  const [cepData, setCepData] = useState(null)
+  const [cepStatus, setCepStatus] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false)
+  const autocompleteTimer = useRef(null)
+  const autocompleteAbort = useRef(null)
+  const hasPriority = wp.priority > 0
+  const needsNumber = cepStatus === 'ok' && !number.trim()
+
+  useEffect(() => () => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+  }, [])
+
+  const handleCepChange = async (e) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
+    const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw
+    setCep(formatted)
+    setCepStatus(null)
+    setCepData(null)
+    if (raw.length === 8) {
+      setCepStatus('loading')
+      const data = await fetchCepData(raw)
+      if (data) {
+        setCepData(data)
+        setCepStatus('ok')
+        onChange({ ...wp, address: buildAddressFromCepData(data, number) })
+        if (!number.trim()) setTimeout(() => numberInputRef?.current?.focus(), 0)
+      } else {
+        setCepStatus('err')
+      }
+    }
+  }
+
+  const handleNumberChange = (e) => {
+    const num = e.target.value
+    setNumber(num)
+    if (cepData) {
+      onChange({ ...wp, address: buildAddressFromCepData(cepData, num) })
+    }
+  }
+
+  const handleAddressChange = (e) => {
+    const val = e.target.value
+    onChange({ ...wp, address: val })
+    setCepStatus(null)
+    setCepData(null)
+
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+
+    if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+      setAutocompleteLoading(true)
+      setShowSuggestions(true)
+      autocompleteTimer.current = setTimeout(async () => {
+        autocompleteAbort.current = new AbortController()
+        try {
+          const res = await routeService.autocompleteAddress(val, autocompleteAbort.current.signal)
+          setSuggestions(res.data || [])
+        } catch (err) {
+          if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') setSuggestions([])
+        } finally {
+          setAutocompleteLoading(false)
+        }
+      }, AUTOCOMPLETE_DEBOUNCE_MS)
+    } else {
+      setAutocompleteLoading(false)
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelectSuggestion = (address) => {
+    clearTimeout(autocompleteTimer.current)
+    autocompleteAbort.current?.abort()
+    onChange({ ...wp, address })
+    setSuggestions([])
+    setShowSuggestions(false)
+    setTimeout(() => numberInputRef?.current?.focus(), 0)
+  }
+
+  return (
+    <div className={`waypoint-card${hasPriority ? ' waypoint-priority' : ''}`}>
+      {/* CEP + Nº + priority + remove */}
+      <div className="waypoint-card-top">
+        <span className="waypoint-num">{index + 1}</span>
+        <input
+          type="text"
+          value={cep}
+          onChange={handleCepChange}
+          placeholder="CEP"
+          inputMode="numeric"
+          style={{ minWidth: 0, flex: 1, maxWidth: 95, fontSize: '0.82rem', padding: '6px 9px' }}
+          maxLength={9}
+        />
+        <input
+          ref={numberInputRef}
+          type="text"
+          value={number}
+          onChange={handleNumberChange}
+          placeholder="Nº"
+          inputMode="numeric"
+          style={{
+            minWidth: 0, flex: 0.7, maxWidth: 60, fontSize: '0.82rem', padding: '6px 8px',
+            borderColor: needsNumber ? 'var(--warning, #f59e0b)' : undefined,
+          }}
+          maxLength={10}
+        />
+        {cepStatus === 'loading' && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>...</span>
+        )}
+        {cepStatus === 'ok' && !needsNumber && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--success)', whiteSpace: 'nowrap' }}>✓</span>
+        )}
+        {needsNumber && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>nº?</span>
+        )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, minWidth: 0 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', whiteSpace: 'nowrap', display: 'none' }}>Ordem</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={wp.priority || ''}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10)
+              onChange({ ...wp, priority: isNaN(v) || v < 1 ? 0 : v })
+            }}
+            placeholder="—"
+            title="Número na ordem de entrega (1 = primeiro). Em branco = otimização automática."
+            style={{ minWidth: 0, width: 45, padding: '6px 6px', fontSize: '0.82rem', textAlign: 'center', flexShrink: 0 }}
+          />
+          <button type="button" className="btn-danger" onClick={onRemove} style={{ flexShrink: 0, padding: '5px 9px' }}>✕</button>
+        </div>
+      </div>
+
+      {/* Full address with autocomplete */}
+      <div className="waypoint-card-bottom" style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={wp.address}
+          onChange={handleAddressChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder="Endereço completo"
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        {showSuggestions && (suggestions.length > 0 || autocompleteLoading) && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+            background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+            borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 150, overflowY: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}>
+            {autocompleteLoading ? (
+              <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                Buscando...
+              </div>
+            ) : (
+              suggestions.map((sugg, i) => (
+                <div
+                  key={i}
+                  onMouseDown={() => handleSelectSuggestion(sugg.address)}
+                  style={{
+                    padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-1)', fontSize: '0.8rem', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {sugg.address}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {hasPriority && (
+        <p style={{ fontSize: '0.7rem', color: 'var(--primary-light)', marginTop: 5 }}>
+          {wp.priority}ª parada na sequência de entrega
+        </p>
+      )}
+    </div>
+  )
+}, (prev, next) => {
+  // Skip onChange/onRemove identity (parent recreates arrows per render).
+  // Parent uses functional setState, so stale closures aren't an issue.
+  return prev.wp === next.wp
+    && prev.index === next.index
+    && prev.numberInputRef === next.numberInputRef
+})
+
+const PLAN_LIMITS = {
+  tester:              { routes_per_day: 1,   max_waypoints: 50,  name: 'Trial' },
+  basic:               { routes_per_day: 1,   max_waypoints: 100, name: 'Basic' },
+  starter:             { routes_per_day: 3,   max_waypoints: 100, name: 'Starter' },
+  delivery:            { routes_per_day: 5,   max_waypoints: 150, name: 'Delivery' },
+  premium:             { routes_per_day: 10,  max_waypoints: 200, name: 'Premium' },
+  enterprise:          { routes_per_day: -1,  max_waypoints: -1,  name: 'Enterprise' },
+  enterprise_medio:    { routes_per_day: 50,  max_waypoints: 300, name: 'Enterprise Médio' },
+  enterprise_avancado: { routes_per_day: 100, max_waypoints: 400, name: 'Enterprise Avançado' },
+  enterprise_custom:   { routes_per_day: -1,  max_waypoints: -1,  name: 'Enterprise Custom' },
+}
+
+const PlanWidget = React.memo(function PlanWidget({ user, todayRoutes }) {
+  if (!user) return null
+  if (user.is_admin) return null
+  const plan = user.plan || 'tester'
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.tester
+  const isUnlimited = limits.routes_per_day === -1
+  const used = todayRoutes || 0
+  const total = limits.routes_per_day
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr', gap: '1rem',
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '0.9rem 1rem', marginBottom: '1.2rem',
+    }} className="plan-widget">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', width: '100%' }}>
+        <div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Plano</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
+            {limits.name}
+            {user.plan_status === 'trial' && (
+              <span style={{ marginLeft: 4, fontSize: '0.65rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '0.1rem 0.35rem', borderRadius: 3, fontWeight: 700 }}>TRIAL</span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Rotas hoje</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
+            {isUnlimited ? (
+              <span style={{ color: '#34d399' }}>Ilimitado</span>
+            ) : (
+              <>
+                <span style={{ color: used >= total ? '#f87171' : 'var(--primary-light)' }}>{used}</span>
+                <span style={{ color: 'var(--text-2)', fontWeight: 400 }}> / {total}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Max paradas</div>
+          <div style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.9rem' }}>
+            {limits.max_waypoints === -1 ? <span style={{ color: '#34d399' }}>Ilimitado</span> : limits.max_waypoints}
+          </div>
+        </div>
+      </div>
+      <Link
+        to="/plans"
+        style={{
+          fontSize: '0.78rem', color: 'var(--primary-light)', fontWeight: 600,
+          textDecoration: 'none', whiteSpace: 'nowrap', justifySelf: 'center',
+        }}
+      >
+        {user.plan === 'tester' || user.plan_status !== 'active' ? 'Fazer upgrade →' : 'Ver planos →'}
+      </Link>
+    </div>
+  )
+})
+
+/* ── Dashboard page ── */
+function Dashboard({ user, setUser }) {
   const [routes, setRoutes] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [routeName, setRouteName] = useState('')
-  const [optimizationType, setOptimizationType] = useState('tsp')
+  const [vehicleType, setVehicleType] = useState('leve')
   const [startAddress, setStartAddress] = useState('')
   const [endAddress, setEndAddress] = useState('')
   const [waypoints, setWaypoints] = useState([])
   const [currentWaypoint, setCurrentWaypoint] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [nfeOpen, setNfeOpen] = useState(false)
+  const [nfeFiles, setNfeFiles] = useState([])
+  const [nfeLoading, setNfeLoading] = useState(false)
+  const [nfeCount, setNfeCount] = useState(0)
+  const [nfeTypeModal, setNfeTypeModal] = useState(false)
+  const [nfeAddressType, setNfeAddressType] = useState('both')
+  const [fuelPrice, setFuelPrice] = useState('')
+  const [fuelConsumption, setFuelConsumption] = useState('')
+  const [axleCount, setAxleCount] = useState(2)
+  const [sameEndAsStart, setSameEndAsStart] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [waypointShake, setWaypointShake] = useState(false)
+  const [wpSuggestions, setWpSuggestions] = useState([])
+  const [wpShowSuggestions, setWpShowSuggestions] = useState(false)
+  const [wpAutocompleteLoading, setWpAutocompleteLoading] = useState(false)
+  const lastWaypointNumberRef = useRef()
+  const nfeInputRef = useRef()
   const navigate = useNavigate()
 
   useEffect(() => {
+    if (sameEndAsStart) setEndAddress(startAddress)
+  }, [startAddress, sameEndAsStart])
+
+  const planKey = (user?.plan || 'tester').toLowerCase()
+  const waypointLimit = user?.is_admin ? -1 : (PLAN_LIMITS[planKey]?.max_waypoints ?? 50)
+  const isWaypointUnlimited = waypointLimit === -1
+  const atWaypointLimit = !isWaypointUnlimited && waypoints.length >= waypointLimit
+
+  const triggerShake = () => {
+    setWaypointShake(true)
+    setTimeout(() => setWaypointShake(false), 600)
+  }
+
+  useEffect(() => {
+    const saved = localStorage.getItem('uploadedWaypoints')
+    if (saved) {
+      try {
+        const wps = JSON.parse(saved)
+        setWaypoints(wps.map(w => ({ address: w.address || w, priority: 0 })))
+        setNfeCount(wps.length)
+        localStorage.removeItem('uploadedWaypoints')
+      } catch (_) {}
+    }
     loadRoutes()
   }, [])
 
   const loadRoutes = async () => {
     try {
       const res = await routeService.getHistory()
-      setRoutes(res.data)
+      setRoutes(Array.isArray(res.data) ? res.data : [])
+    } catch (_) {}
+  }
+
+  const addWaypoint = async (customAddress = null) => {
+    const val = (customAddress || currentWaypoint).trim()
+    if (!val) return
+    if (atWaypointLimit) { triggerShake(); return }
+    const addr = customAddress ? val : await resolveAddress(val)
+    if (!isWaypointUnlimited && waypoints.length >= waypointLimit) { triggerShake(); return }
+    setWaypoints(prev => [...prev, { address: addr, priority: 0 }])
+    setCurrentWaypoint('')
+    // Focus number input of newly added waypoint
+    setTimeout(() => lastWaypointNumberRef.current?.focus(), 0)
+  }
+
+  const updateWaypoint = (i, updated) =>
+    setWaypoints(prev => prev.map((wp, idx) => idx === i ? updated : wp))
+
+  const removeWaypoint = (i) =>
+    setWaypoints(prev => prev.filter((_, idx) => idx !== i))
+
+  const handleNfeUpload = async () => {
+    if (nfeFiles.length === 0) return
+    setNfeLoading(true)
+    setError('')
+    const allNewWps = []
+    try {
+      for (const file of nfeFiles) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const params = new URLSearchParams()
+        params.append('address_type', nfeAddressType)
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/routes/upload?${params}`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const errData = await res.json()
+          setError(prev => prev + `\n${file.name}: ${errData.detail || 'Falha ao processar.'}`)
+          continue
+        }
+        const data = await res.json()
+        const addresses = data.extracted_data?.addresses || []
+        const newWps = addresses
+          .map(a => ({ address: a.address || a, priority: 0 }))
+          .filter(w => w.address)
+        allNewWps.push(...newWps)
+      }
+      setWaypoints(prev => [...prev, ...allNewWps])
+      setNfeCount(prev => prev + allNewWps.length)
+      setNfeFiles([])
+      setNfeTypeModal(false)
+      if (nfeInputRef.current) nfeInputRef.current.value = ''
+      if (allNewWps.length === 0) setError('Nenhum endereço encontrado nos arquivos.')
     } catch (err) {
-      setError('Failed to load routes')
+      setError(err.message || 'Falha ao processar NFe.')
+    } finally {
+      setNfeLoading(false)
     }
-  }
-
-  const addWaypoint = () => {
-    if (currentWaypoint.trim()) {
-      setWaypoints([...waypoints, { address: currentWaypoint }])
-      setCurrentWaypoint('')
-    }
-  }
-
-  const removeWaypoint = (index) => {
-    setWaypoints(waypoints.filter((_, i) => i !== index))
   }
 
   const handleOptimize = async (e) => {
     e.preventDefault()
+    if (waypoints.length === 0) { setError('Adicione pelo menos uma parada.'); return }
     setLoading(true)
     setError('')
     setSuccess('')
-
     try {
       const res = await routeService.optimizeRoute(
-        optimizationType,
-        startAddress,
-        endAddress,
-        waypoints
+        'tsp', vehicleType, startAddress, endAddress, waypoints,
+        {
+          fuelPrice: parseMasked(fuelPrice),
+          fuelConsumption: parseMasked(fuelConsumption),
+          axleCount,
+        }
       )
-
-      localStorage.setItem('lastRoute', JSON.stringify(res.data))
-      setSuccess('Route optimized! Redirecting to results...')
-      setTimeout(() => navigate('/results'), 1500)
+      localStorage.setItem('lastRoute', JSON.stringify({
+        ...res.data,
+        vehicleType,
+        fuelPrice: parseMasked(fuelPrice),
+        fuelConsumption: parseMasked(fuelConsumption),
+        axleCount,
+      }))
+      // Refresh user so routes_used_today stays in sync across header + dashboard
+      authService.getCurrentUser().then(r => setUser(r.data)).catch(() => {})
+      setSuccess('Rota otimizada! Redirecionando...')
+      setTimeout(() => navigate('/results'), 1200)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Optimization failed')
+      const detail = err.response?.data?.detail
+      setError(Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : detail || 'Falha na otimização.')
     } finally {
       setLoading(false)
     }
   }
 
+  const formatDuration = (min) => {
+    if (!min) return 'N/A'
+    if (min < 60) return `${Math.round(min)} min`
+    return `${Math.floor(min / 60)}h ${Math.round(min % 60)}min`
+  }
+
+  const hasPriority = waypoints.some(w => w.priority > 0)
+
   return (
     <div className="main">
-      <h2>Route Optimization Dashboard</h2>
+      <div className="container">
+      <div className="page-title">Otimizar Rota</div>
+      <div className="page-subtitle">
+        Configure paradas, prioridades e veículo para calcular a melhor rota.
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-        {/* Form */}
-        <div>
-          <h3>Create New Route</h3>
+      <PlanWidget user={user} todayRoutes={user?.routes_used_today ?? 0} />
+
+      <div className="grid-2">
+        {/* ── Form card ── */}
+        <div className="card">
           {error && <div className="error">{error}</div>}
           {success && <div className="success">{success}</div>}
 
-          <form onSubmit={handleOptimize}>
-            <div className="form-group">
-              <label>Route Name</label>
-              <input
-                type="text"
-                value={routeName}
-                onChange={(e) => setRouteName(e.target.value)}
-                placeholder="e.g., Delivery Route - SP"
-                required
-              />
+          {/* Vehicle type */}
+          <div className="form-group">
+            <label>Tipo de Veículo</label>
+            <div className="vehicle-selector">
+              {VEHICLES.map(v => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={`vehicle-btn${vehicleType === v.id ? ' active' : ''}`}
+                  onClick={() => setVehicleType(v.id)}
+                >
+                  <span className="vehicle-icon">{v.icon}</span>
+                  <span>{v.label}</span>
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="form-group">
-              <label>Optimization Type</label>
-              <select
-                value={optimizationType}
-                onChange={(e) => setOptimizationType(e.target.value)}
-              >
-                <option value="tsp">TSP (Shortest Path)</option>
-                <option value="vrp">VRP (Vehicle Routing)</option>
-              </select>
-            </div>
+          {/* Origin / Destination */}
+          <AddressField
+            label="Endereço de Saída"
+            value={startAddress}
+            onChange={setStartAddress}
+            placeholder="Ex: Av. Paulista, 1000, São Paulo, SP"
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: -4 }}>
+            <input
+              type="checkbox"
+              id="same-end-as-start"
+              checked={sameEndAsStart}
+              onChange={e => setSameEndAsStart(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)', flexShrink: 0 }}
+            />
+            <label htmlFor="same-end-as-start" style={{ fontSize: '0.85rem', color: 'var(--text-2)', cursor: 'pointer', margin: 0 }}>
+              Mesmo endereço de saída
+            </label>
+          </div>
 
-            <div className="form-group">
-              <label>Start Address</label>
-              <input
-                type="text"
-                value={startAddress}
-                onChange={(e) => setStartAddress(e.target.value)}
-                placeholder="Rua da Saída, 123, São Paulo, SP"
-                required
-              />
-            </div>
+          {!sameEndAsStart && (
+            <AddressField
+              label="Endereço de Chegada"
+              value={endAddress}
+              onChange={setEndAddress}
+              placeholder="Ex: Rua Augusta, 500, São Paulo, SP"
+            />
+          )}
 
-            <div className="form-group">
-              <label>End Address</label>
-              <input
-                type="text"
-                value={endAddress}
-                onChange={(e) => setEndAddress(e.target.value)}
-                placeholder="Rua de Chegada, 456, São Paulo, SP"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Waypoints (Destinations)</label>
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          {/* Fuel & costs */}
+          <div className="fuel-block">
+            <div className="fuel-block-label">Custos (opcional)</div>
+            <div className="fuel-grid">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Combustível (R$/L)</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--gray-400)', fontSize: '0.875rem', pointerEvents: 'none',
+                  }}>R$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={fuelPrice}
+                    onChange={e => setFuelPrice(applyPriceMask(e.target.value))}
+                    placeholder="0,00"
+                    style={{ paddingLeft: 32 }}
+                  />
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Consumo (km/L)</label>
                 <input
                   type="text"
-                  value={currentWaypoint}
-                  onChange={(e) => setCurrentWaypoint(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addWaypoint())}
-                  placeholder="Add address..."
-                  style={{ flex: 1 }}
+                  inputMode="numeric"
+                  value={fuelConsumption}
+                  onChange={e => setFuelConsumption(applyConsumptionMask(e.target.value))}
+                  placeholder="0,0"
                 />
-                <button type="button" onClick={addWaypoint} style={{ width: 'auto' }}>
-                  Add
-                </button>
               </div>
-
-              {waypoints.length > 0 && (
-                <div style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  padding: '10px',
-                  marginBottom: '10px',
-                  maxHeight: '200px',
-                  overflowY: 'auto'
-                }}>
-                  {waypoints.map((wp, i) => (
-                    <div key={i} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px',
-                      borderBottom: '1px solid #eee'
-                    }}>
-                      <span>{wp.address}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeWaypoint(i)}
-                        style={{
-                          width: 'auto',
-                          background: '#dc3545',
-                          padding: '4px 8px'
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+              {vehicleType === 'pesado' && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Nº de Eixos</label>
+                  <select
+                    value={axleCount}
+                    onChange={e => setAxleCount(parseInt(e.target.value, 10))}
+                  >
+                    {[2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                      <option key={n} value={n}>{n} eixos</option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: 8 }}>
+              Pedágios estimados automaticamente pela distância da rota.
+            </p>
+          </div>
 
-            <button type="submit" disabled={loading || waypoints.length === 0}>
-              {loading ? 'Optimizing...' : 'Optimize Route'}
+          {/* NFe import accordion */}
+          <div className="nfe-section">
+            <button
+              type="button"
+              className={`nfe-toggle${nfeOpen ? ' open' : ''}`}
+              onClick={() => setNfeOpen(o => !o)}
+            >
+              Importar endereços de NFe
+              {nfeCount > 0 && (
+                <span className="nfe-badge" style={{ marginLeft: 8 }}>
+                  {nfeCount} importados
+                </span>
+              )}
+              <span className="chevron">▼</span>
             </button>
-          </form>
+
+            {nfeOpen && (
+              <div className="nfe-body">
+                <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginBottom: 12 }}>
+                  Upload de XML, PDF ou imagem de NFe. CEPs consultados via ViaCEP.
+                </p>
+                <div className="nfe-upload-row">
+                  <div className="form-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
+                    <input
+                      ref={nfeInputRef}
+                      type="file"
+                      accept=".xml,.pdf,.png,.jpg,.jpeg"
+                      multiple={true}
+                      onChange={e => setNfeFiles(Array.from(e.target.files))}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-success"
+                    onClick={() => nfeFiles.length > 0 && setNfeTypeModal(true)}
+                    disabled={nfeFiles.length === 0 || nfeLoading}
+                    style={{ width: 'auto', flexShrink: 0 }}
+                  >
+                    {nfeLoading ? '...' : 'Extrair'}
+                  </button>
+                </div>
+
+                {nfeTypeModal && (
+                  <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
+                  }} onClick={() => !nfeLoading && setNfeTypeModal(false)}>
+                    <div style={{
+                      background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.5rem', maxWidth: 360, boxShadow: '0 20px 25px rgba(0,0,0,0.15)'
+                    }} onClick={e => e.stopPropagation()}>
+                      <h3 style={{ color: 'var(--text-1)', marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>Qual endereço extrair?</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        {[
+                          { val: 'destination', label: '📍 Só destinatário', desc: 'Endereço de entrega' },
+                          { val: 'origin', label: '📦 Só remetente', desc: 'Endereço de saída' },
+                          { val: 'both', label: '↔️ Ambos', desc: 'Remetente e destinatário' },
+                        ].map(opt => (
+                          <label key={opt.val} style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '0.75rem', background: nfeAddressType === opt.val ? 'rgba(37,99,235,0.1)' : 'transparent', border: `1px solid ${nfeAddressType === opt.val ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 0.1s'
+                          }}>
+                            <input type="radio" name="nfe-type" value={opt.val} checked={nfeAddressType === opt.val} onChange={e => setNfeAddressType(e.target.value)} style={{ cursor: 'pointer' }} />
+                            <div>
+                              <div style={{ color: 'var(--text-1)', fontSize: '0.9rem', fontWeight: 500 }}>{opt.label}</div>
+                              <div style={{ color: 'var(--text-2)', fontSize: '0.75rem' }}>{opt.desc}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button type="button" className="btn-primary" onClick={handleNfeUpload} disabled={nfeLoading} style={{ flex: 1 }}>
+                          {nfeLoading ? 'Extraindo...' : 'Extrair'}
+                        </button>
+                        <button type="button" onClick={() => setNfeTypeModal(false)} disabled={nfeLoading} style={{ flex: 1, padding: '0.6rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Waypoints list */}
+          <style>{`
+            @keyframes shake {
+              0%,100% { transform: translateX(0); }
+              15%      { transform: translateX(-6px); }
+              30%      { transform: translateX(6px); }
+              45%      { transform: translateX(-5px); }
+              60%      { transform: translateX(5px); }
+              75%      { transform: translateX(-3px); }
+              90%      { transform: translateX(3px); }
+            }
+            .waypoint-limit-shake { animation: shake 0.55s ease; }
+          `}</style>
+          <div className={`form-group${waypointShake ? ' waypoint-limit-shake' : ''}`}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+              <span>
+                Paradas
+                {hasPriority && (
+                  <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 400, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
+                    paradas com ordem definida entregues primeiro
+                  </span>
+                )}
+              </span>
+              <span style={{
+                fontSize: '0.78rem', fontWeight: 700, letterSpacing: 0, textTransform: 'none',
+                color: atWaypointLimit ? '#f87171' : 'var(--text-2)',
+                background: atWaypointLimit ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${atWaypointLimit ? 'rgba(239,68,68,0.35)' : 'var(--border)'}`,
+                borderRadius: 6, padding: '0.2rem 0.55rem',
+                transition: 'all 0.25s',
+              }}>
+                {isWaypointUnlimited
+                  ? `${waypoints.length} paradas`
+                  : `${waypoints.length} / ${waypointLimit}`}
+                {atWaypointLimit && ' — limite atingido'}
+              </span>
+            </label>
+            <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', marginTop: -4, marginBottom: 8 }}>
+              Defina um número em "Ordem" para fixar a sequência. Em branco = otimização automática.
+            </p>
+
+            {waypoints.map((wp, i) => (
+              <WaypointRow
+                key={i}
+                wp={wp}
+                index={i}
+                onChange={updated => updateWaypoint(i, updated)}
+                onRemove={() => removeWaypoint(i)}
+                numberInputRef={i === waypoints.length - 1 ? lastWaypointNumberRef : null}
+              />
+            ))}
+
+            {atWaypointLimit && (
+              <div style={{
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 8, padding: '0.65rem 0.9rem', marginTop: 8,
+                fontSize: '0.82rem', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              }}>
+                <span>Limite de {waypointLimit} paradas atingido no plano <strong>{PLAN_LIMITS[planKey]?.name}</strong>.</span>
+                <Link to="/plans" style={{ color: '#f87171', fontWeight: 700, textDecoration: 'underline', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                  Fazer upgrade →
+                </Link>
+              </div>
+            )}
+
+            {!atWaypointLimit && (
+              <div style={{ marginTop: 8, position: 'relative' }}>
+                <div className="waypoint-input-row">
+                  <input
+                    type="text"
+                    value={currentWaypoint}
+                    onChange={async e => {
+                      const val = e.target.value
+                      setCurrentWaypoint(val)
+                      if (val.trim().length > 3 && !val.match(/^\d{5}-?\d{3}/)) {
+                        setWpAutocompleteLoading(true)
+                        setWpShowSuggestions(true)
+                        try {
+                          const res = await routeService.autocompleteAddress(val)
+                          setWpSuggestions(res.data || [])
+                        } catch (_) {
+                          setWpSuggestions([])
+                        } finally {
+                          setWpAutocompleteLoading(false)
+                        }
+                      } else {
+                        setWpSuggestions([])
+                        setWpShowSuggestions(false)
+                      }
+                    }}
+                    onKeyDown={async e => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      setWpSuggestions([])
+                      setWpShowSuggestions(false)
+                      addWaypoint()
+                    }}
+                    onFocus={() => wpSuggestions.length > 0 && setWpShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setWpShowSuggestions(false), 200)}
+                    placeholder="CEP ou endereço + Enter"
+                  />
+                  <button type="button" className="btn-secondary" onClick={() => {
+                    setWpSuggestions([])
+                    setWpShowSuggestions(false)
+                    addWaypoint()
+                  }}>
+                    + Adicionar
+                  </button>
+                </div>
+                {wpShowSuggestions && (wpSuggestions.length > 0 || wpAutocompleteLoading) && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none',
+                    borderBottomLeftRadius: 8, borderBottomRightRadius: 8, maxHeight: 200, overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}>
+                    {wpAutocompleteLoading ? (
+                      <div style={{ padding: '8px 12px', color: 'var(--gray-400)', fontSize: '0.85rem' }}>
+                        Buscando...
+                      </div>
+                    ) : (
+                      wpSuggestions.map((sugg, i) => (
+                        <div
+                          key={i}
+                          onMouseDown={() => {
+                            setWpSuggestions([])
+                            setWpShowSuggestions(false)
+                            addWaypoint(sugg.address)
+                          }}
+                          style={{
+                            padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                            color: 'var(--text-1)', fontSize: '0.85rem', transition: 'background 0.1s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          {sugg.address}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button
+            className="btn-primary"
+            onClick={handleOptimize}
+            disabled={loading || !startAddress || !endAddress || waypoints.length === 0}
+          >
+            {loading ? 'Otimizando...' : 'Otimizar Rota'}
+          </button>
         </div>
 
-        {/* History */}
+        {/* ── Route history ── */}
         <div>
-          <h3>Recent Routes</h3>
+          <div className="card-title" style={{ marginBottom: 14 }}>Rotas Recentes</div>
           {routes.length === 0 ? (
-            <p style={{ color: '#999' }}>No routes yet</p>
+            <div className="card" style={{ textAlign: 'center', color: 'var(--gray-400)', padding: 36 }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>🗺️</div>
+              <p>Nenhuma rota ainda.<br />Crie sua primeira rota!</p>
+            </div>
           ) : (
             <ul className="route-list">
-              {routes.slice(0, 10).map((route) => (
+              {routes.slice(0, 10).map(route => (
                 <li key={route.id} className="route-item">
-                  <h4>{route.name}</h4>
-                  <p><strong>Type:</strong> {route.optimization_type.toUpperCase()}</p>
-                  <p><strong>From:</strong> {route.start_address}</p>
-                  <p><strong>To:</strong> {route.end_address}</p>
-                  <p><strong>Distance:</strong> {route.total_distance_km?.toFixed(2) || 'N/A'} km</p>
-                  {route.google_maps_url && (
-                    <a href={route.google_maps_url} target="_blank" rel="noopener noreferrer">
-                      View on Google Maps
-                    </a>
-                  )}
+                  <div className="route-item-header">
+                    <span className="route-item-name">{route.name || 'Rota sem nome'}</span>
+                    <span className="badge">{route.optimization_type.toUpperCase()}</span>
+                  </div>
+                  <div className="route-item-meta">
+                    <span>{route.start_address}</span>
+                    {route.total_distance_km && (
+                      <span>{route.total_distance_km.toFixed(1)} km</span>
+                    )}
+                    {route.total_duration_minutes && (
+                      <span>{formatDuration(route.total_duration_minutes)}</span>
+                    )}
+                    {route.google_maps_url && (
+                      <a
+                        href={route.google_maps_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--primary-light)', textDecoration: 'none', fontWeight: 600 }}
+                      >
+                        Ver Maps →
+                      </a>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

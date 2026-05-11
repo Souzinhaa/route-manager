@@ -2,116 +2,383 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { routeService } from '../services/api'
 
-function Results({ user }) {
+const VEHICLE_LABEL = {
+  moto:   '🏍️ Moto',
+  leve:   '🚗 Veículo Leve',
+  pesado: '🚛 Veículo Pesado',
+}
+
+function formatDuration(min) {
+  if (!min) return 'N/A'
+  if (min < 60) return `${Math.round(min)} min`
+  return `${Math.floor(min / 60)}h ${Math.round(min % 60)}min`
+}
+
+function fmt(val) {
+  return val != null ? `R$ ${parseFloat(val).toFixed(2)}` : '—'
+}
+
+// Toll/fuel are now computed by the backend. Kept as fallback only when backend doesn't return them.
+function estimateTollFallback(distKm, vehicleType, axleCount) {
+  const plazas = Math.floor(distKm / 50)
+  if (plazas === 0) return 0
+  if (vehicleType === 'moto') return plazas * 2.50
+  if (vehicleType === 'pesado') return plazas * 5.00 * Math.ceil((axleCount || 2) / 2)
+  return plazas * 5.00
+}
+
+function Results() {
   const [route, setRoute] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
+  const [shareToken, setShareToken] = useState(null)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     const saved = localStorage.getItem('lastRoute')
     if (saved) {
-      setRoute(JSON.parse(saved))
+      try { setRoute(JSON.parse(saved)) } catch (_) {}
     }
-    setLoading(false)
   }, [])
-
-  if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>
-  }
 
   if (!route) {
     return (
       <div className="main">
-        <h2>No Route Found</h2>
-        <p>Please create a route first.</p>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <div className="container">
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🗺️</div>
+          <h2 style={{ marginBottom: 8, color: 'var(--gray-700)', fontSize: '1.15rem' }}>
+            Nenhuma rota encontrada
+          </h2>
+          <p style={{ color: 'var(--gray-400)', marginBottom: 20, fontSize: '0.875rem' }}>
+            Crie uma rota primeiro.
+          </p>
+          <button
+            className="btn-primary"
+            style={{ width: 'auto', margin: '0 auto', display: 'block', padding: '10px 24px' }}
+            onClick={() => navigate('/dashboard')}
+          >
+            Ir para o Painel
+          </button>
+        </div>
+        </div>
       </div>
     )
   }
 
+  const dist = route.total_distance_km || 0
+  const fuelLiters =
+    route.fuelPrice && route.fuelConsumption && route.fuelConsumption > 0
+      ? dist / route.fuelConsumption
+      : null
+  // Prefer backend-computed values (single source of truth). Fallback to local calc for legacy routes.
+  const fuelTotal =
+    route.fuel_estimate != null && route.fuel_estimate > 0
+      ? route.fuel_estimate
+      : fuelLiters ? fuelLiters * route.fuelPrice : null
+  const tollFromBackend = route.toll_estimate
+  const tollTotal =
+    tollFromBackend != null
+      ? (tollFromBackend > 0 ? tollFromBackend : null)
+      : (dist > 0 ? estimateTollFallback(dist, route.vehicleType, route.axleCount) : null)
+  const grandTotal =
+    fuelTotal != null || tollTotal != null
+      ? (fuelTotal || 0) + (tollTotal || 0)
+      : null
+
+  const handleCopy = () => {
+    const text = `Rota Otimizada — ${VEHICLE_LABEL[route.vehicleType] || ''}
+Distância: ${dist.toFixed(2)} km
+Duração: ${formatDuration(route.total_duration_minutes)}
+${fuelTotal != null ? `Combustível: R$ ${fuelTotal.toFixed(2)} (${fuelLiters.toFixed(2)} L)` : ''}
+${tollTotal != null ? `Pedágios (est.): R$ ${tollTotal.toFixed(2)}` : ''}
+${grandTotal != null ? `Total: R$ ${grandTotal.toFixed(2)}` : ''}
+
+Paradas:
+${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleShare = async () => {
+    const routeId = route?.route_id || route?.id
+    if (!route || !routeId) return
+    try {
+      setSharing(true)
+      setShareError(null)
+      const res = await routeService.shareRoute(routeId)
+      if (res.data?.share_token) {
+        setShareToken(res.data.share_token)
+      }
+    } catch (err) {
+      setShareError(err.response?.data?.detail || 'Erro ao compartilhar rota')
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const handleCopyShareLink = () => {
+    if (!shareToken) return
+    const origin = window.location.origin
+    const link = `${origin}/shared/${shareToken}`
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="main">
-      <h2>Optimized Route</h2>
+      <div className="container">
+      {/* Page header row */}
+      <div className="results-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="page-title">Rota Otimizada</div>
+          {route.vehicleType && (
+            <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+              {VEHICLE_LABEL[route.vehicleType] || route.vehicleType}
+            </span>
+          )}
+        </div>
+        <button
+          className="btn-secondary"
+          onClick={() => navigate('/dashboard')}
+          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+        >
+          Nova Rota
+        </button>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-        {/* Details */}
-        <div>
-          <h3>Route Details</h3>
-          <div className="card">
-            <p><strong>Total Distance:</strong> {route.total_distance_km?.toFixed(2)} km</p>
-            <p><strong>Estimated Duration:</strong> {route.total_duration_minutes?.toFixed(0)} minutes</p>
-            <p><strong>Cost Estimate:</strong> R$ {route.cost_estimate?.toFixed(2)}</p>
-            <p><strong>Waypoints:</strong> {route.optimized_waypoints?.length || 0}</p>
+      {/* Stat cards */}
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-value">{dist.toFixed(1)}</div>
+          <div className="stat-label">km total (aprox.)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{formatDuration(route.total_duration_minutes)}</div>
+          <div className="stat-label">Tempo estimado (aprox.)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{route.optimized_waypoints?.length || 0}</div>
+          <div className="stat-label">Paradas</div>
+        </div>
+        {tollTotal != null && (
+          <div className="stat-card">
+            <div className="stat-value">{fmt(tollTotal)}</div>
+            <div className="stat-label">Pedágios (est.)</div>
           </div>
+        )}
+      </div>
 
-          <h3 style={{ marginTop: '30px' }}>Optimized Sequence</h3>
-          {route.optimized_waypoints && route.optimized_waypoints.length > 0 ? (
-            <ol style={{ lineHeight: '1.8' }}>
-              {route.optimized_waypoints.map((wp, i) => (
-                <li key={i}>{wp.address}</li>
-              ))}
+      {/* Main two-column grid */}
+      <div className="grid-2">
+        {/* Optimized stops */}
+        <div className="card">
+          <div className="card-title">Sequência Otimizada</div>
+          {route.optimized_waypoints?.length > 0 ? (
+            <ol className="ordered-stops" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {/* Start */}
+              {route.start_address && (
+                <li className="stop-item" style={{ opacity: 0.6 }}>
+                  <span className="stop-num" style={{ background: 'var(--success)', minWidth: 26, fontSize: '0.7rem' }}>▶</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', fontSize: '0.82rem' }}>
+                    {route.start_address}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Saída</span>
+                </li>
+              )}
+
+              {/* Waypoints */}
+              {route.optimized_waypoints.map((wp, i) => {
+                const p = wp.priority || 0
+                return (
+                  <li key={i} className="stop-item">
+                    <span className="stop-num">{i + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                      {wp.address}
+                    </span>
+                    {p > 0 && (
+                      <span
+                        className="priority-pill"
+                        style={{ background: 'rgba(37,99,235,.2)', color: 'var(--primary-light)' }}
+                      >
+                        #{p}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+
+              {/* End */}
+              {route.end_address && (
+                <li className="stop-item" style={{ opacity: 0.6 }}>
+                  <span className="stop-num" style={{ background: 'var(--danger, #ef4444)', minWidth: 26, fontSize: '0.7rem' }}>■</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', fontSize: '0.82rem' }}>
+                    {route.end_address}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Chegada</span>
+                </li>
+              )}
             </ol>
           ) : (
-            <p>No waypoints</p>
+            <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem' }}>Sem paradas</p>
           )}
         </div>
 
-        {/* Map & Actions */}
-        <div>
-          <h3>Google Maps</h3>
-          {route.google_maps_url ? (
-            <div style={{
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              padding: '20px',
-              textAlign: 'center',
-              marginBottom: '20px'
-            }}>
-              <p style={{ marginBottom: '10px' }}>
-                Click the button to open full route in Google Maps
-              </p>
+        {/* Costs + Actions column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+          {/* Cost breakdown */}
+          {(fuelTotal != null || tollTotal != null) && (
+            <div className="card">
+              <div className="card-title">Custos da Rota</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <tbody>
+                  {fuelTotal != null && (
+                    <>
+                      <tr>
+                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>Combustível</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {fmt(fuelTotal)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={{ padding: '0 0 8px', color: 'var(--gray-400)', fontSize: '0.78rem',
+                            overflowWrap: 'break-word', wordBreak: 'break-word' }}
+                        >
+                          {fuelLiters.toFixed(2)} L × R$ {parseFloat(route.fuelPrice).toFixed(2)}/L
+                          &nbsp;·&nbsp; {dist.toFixed(1)} km ÷ {route.fuelConsumption} km/L
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                  {tollTotal != null && (
+                    <>
+                      <tr>
+                        <td style={{ padding: '6px 0', color: 'var(--gray-600)' }}>Pedágios (est.)</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {fmt(tollTotal)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={{ padding: '0 0 8px', color: 'var(--gray-400)', fontSize: '0.78rem' }}
+                        >
+                          ~1 praça a cada 50 km
+                          {route.vehicleType === 'pesado' && route.axleCount
+                            ? ` · ${route.axleCount} eixos`
+                            : ''}
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                  {grandTotal != null && (
+                    <tr style={{ borderTop: '2px solid var(--gray-200)' }}>
+                      <td style={{ padding: '10px 0 4px', fontWeight: 700, color: 'var(--gray-800)' }}>
+                        Total
+                      </td>
+                      <td style={{
+                        textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
+                        color: 'var(--primary-light)', padding: '10px 0 4px', whiteSpace: 'nowrap',
+                      }}>
+                        {fmt(grandTotal)}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Maps + actions */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div className="card-title" style={{ marginBottom: 0 }}>Google Maps</div>
+              {route.vehicleType && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-2)', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.6rem', borderRadius: 4 }}>
+                  {VEHICLE_LABEL[route.vehicleType]}
+                </span>
+              )}
+            </div>
+            {route.google_maps_url ? (
               <a
+                className="maps-btn"
                 href={route.google_maps_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  display: 'inline-block',
-                  background: '#dc3545',
-                  color: 'white',
-                  padding: '10px 20px',
-                  textDecoration: 'none',
-                  borderRadius: '4px'
-                }}
               >
-                Open in Google Maps
+                Abrir rota completa no Maps
               </a>
-            </div>
-          ) : (
-            <p style={{ color: '#999' }}>Maps URL not available</p>
-          )}
+            ) : (
+              <p style={{ color: 'var(--gray-400)', fontSize: '0.875rem', marginBottom: 12 }}>
+                URL indisponível
+              </p>
+            )}
+            <button
+              className="btn-secondary"
+              style={{ width: '100%', marginBottom: 10 }}
+              onClick={handleCopy}
+            >
+              {copied ? 'Copiado!' : 'Copiar resumo'}
+            </button>
 
-          <h3 style={{ marginTop: '30px' }}>Actions</h3>
-          <button onClick={() => {
-            const text = `Route Summary:
-Distance: ${route.total_distance_km?.toFixed(2)} km
-Duration: ${route.total_duration_minutes?.toFixed(0)} min
-Cost: R$ ${route.cost_estimate?.toFixed(2)}
+            {shareToken ? (
+              <div style={{ marginBottom: 10, padding: 12, background: 'rgba(59,130,246,0.1)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.3)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--primary-light)', marginBottom: 6 }}>
+                  Link Compartilhável
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/shared/${shareToken}`}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '0.8rem',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(59,130,246,0.2)',
+                    borderRadius: 4,
+                    color: 'var(--text-1)',
+                    marginBottom: 8,
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={handleCopyShareLink}
+                >
+                  {copied ? 'Link copiado!' : 'Copiar link'}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-secondary"
+                style={{ width: '100%', marginBottom: 10 }}
+                onClick={handleShare}
+                disabled={sharing}
+              >
+                {sharing ? 'Gerando...' : '🔗 Compartilhar'}
+              </button>
+            )}
 
-Waypoints:
-${route.optimized_waypoints?.map((w, i) => `${i + 1}. ${w.address}`).join('\n')}`
-            navigator.clipboard.writeText(text)
-            alert('Route copied to clipboard!')
-          }} style={{ width: '100%', marginBottom: '10px' }}>
-            Copy Route Details
-          </button>
+            {shareError && (
+              <div style={{ padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4, color: 'var(--error)', fontSize: '0.75rem', marginBottom: 10 }}>
+                {shareError}
+              </div>
+            )}
 
-          <button onClick={() => navigate('/dashboard')} style={{
-            width: '100%',
-            background: '#28a745'
-          }}>
-            Create New Route
-          </button>
+            <button className="btn-primary" onClick={() => navigate('/dashboard')}>
+              + Criar nova rota
+            </button>
+          </div>
         </div>
+      </div>
       </div>
     </div>
   )
